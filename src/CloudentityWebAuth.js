@@ -1,7 +1,11 @@
 import ClientOAuth2 from 'client-oauth2';
-import pick from 'ramda/es/pick';
 import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
+import supeagent from 'superagent';
 
+const ERRORS = {
+  UNAUTHORIZED: 'Unauthorized',
+  ERROR: 'Error'
+};
 
 const optionsSpec = {
   clientId: [
@@ -58,7 +62,20 @@ class CloudentityWebAuth {
    */
   getAuth() {
     return this.oauth.token.getToken(global.window.location.href).then(
-      auth => auth.tokenType  && auth.accessToken && !auth.expired() ? Promise.resolve(auth) : Promise.reject({error: 'Unauthorized'})
+      auth => auth.tokenType && auth.accessToken && !auth.expired() ? Promise.resolve(auth.data) : Promise.reject({error: ERRORS.UNAUTHORIZED})
+    );
+  }
+
+  /**
+   * Gets user profile information
+   * @param accessToken OAuth2 access token string
+   *
+   * @returns {Promise}
+   */
+  userInfo(accessToken) {
+    return supeagent.get(this.options.userInfoUri).set('Authorization', 'Bearer ' + accessToken).then(
+      res => res.body,
+      rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
     );
   }
 
@@ -70,8 +87,9 @@ class CloudentityWebAuth {
     }
 
     options.authorizationUri = `https://${options.domain}/oauth/authorize`;
+    options.userInfoUri = `https://${options.domain}/oauth/userinfo`;
 
-    return pick(['clientId', 'authorizationUri', 'redirectUri', 'scopes'], options);
+    return options;
   }
 }
 
