@@ -1,6 +1,6 @@
 import ClientOAuth2 from 'client-oauth2';
 import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
-import supeagent from 'superagent';
+import superagent from 'superagent';
 
 const ERRORS = {
   UNAUTHORIZED: 'Unauthorized',
@@ -73,7 +73,7 @@ class CloudentityWebAuth {
    * @returns {Promise}
    */
   userInfo(accessToken) {
-    return supeagent.get(this.options.userInfoUri).set('Authorization', 'Bearer ' + accessToken).then(
+    return superagent.get(this.options.userInfoUri).set('Authorization', 'Bearer ' + accessToken).then(
       res => res.body,
       rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
     );
