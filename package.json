@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "client-oauth2": "^4.1.0",
-    "ramda": "^0.25.0"
+    "ramda": "^0.25.0",
+    "superagent": "^3.8.2"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",
