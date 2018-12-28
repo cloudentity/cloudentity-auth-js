@@ -4,6 +4,7 @@
 - basic options validation
 - basic documentation - WIP
 - build config
+- configurable 'authorizationUri' and 'userInfoUri' when this urls needs to by customized, 'domain' options has some predefined values provided e.g. protocol, pathnames
 
 ## [Project init]
 ### Added
