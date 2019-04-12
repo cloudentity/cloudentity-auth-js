@@ -1,5 +1,5 @@
 import ClientOAuth2 from 'client-oauth2';
-import { notEmptyStringArray, notEmptyString, validateObject } from "./utils/validators";
+import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
 import superagent from 'superagent';
 
 const ERRORS = {
@@ -49,8 +49,8 @@ class CloudentityWebAuth {
   /**
    * Initiates OAuth2 implicit flow (redirecting to Cloudentity authorization page)
    */
-  authorize () {
-    global.window.location.href = this.oauth.token.getUri();
+  authorize ({nonce}) {
+    global.window.location.href = `${this.oauth.token.getUri()}${nonce ? `&nonce=${nonce}` : ''}`;
   }
 
   /**
