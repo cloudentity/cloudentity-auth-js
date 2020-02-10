@@ -1,3 +1,7 @@
+## [Unreleased refactor]
+### Added
+- Switch flow to PKCE with Cloudentity ACP authorization server
+
 ## [Unreleased]
 ### Added
 - initial client (basic OAuth implicit flow support) - WIP
@@ -10,4 +14,4 @@
 ## [Project init]
 ### Added
 - initial project files
-- EULA 
+- EULA
