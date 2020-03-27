@@ -12,12 +12,8 @@ const optionsSpec = {
   clientId: [
     {test: notEmptyString, message: '\'cliendId\' [non-empty string] option is required'}
   ],
-  tenantId: [
-    {test: notEmptyString, message: '\'tenantId\' [non-empty string] option is required'}
-  ],
-  authorizationServerId: [
-    {test: notEmptyString, message: '\'authorizationServerId\' [non-empty string] option is required'}
-  ],
+  tenantId: [],
+  authorizationServerId: [],
   domain: [],
   authorizationUri: [],
   tokenUri: [],
@@ -54,7 +50,7 @@ class CloudentityWebAuth {
   }
 
   /**
-   * Initiates OAuth2 implicit flow (redirecting to Cloudentity authorization page)
+   * Initiates OAuth2 PKCE flow (redirecting to Cloudentity authorization page)
    */
   authorize () {
      const pkceChallengeFromVerifier = async (v) => {
@@ -123,8 +119,8 @@ class CloudentityWebAuth {
       throw new Error(error);
     }
 
-    options.authorizationUri = options.domain ? `https://${options.domain}/${options.tenantId}/${options.authorizationServerId}/oauth2/authorize` : options.authorizationUri;
-    options.tokenUri = options.domain ? `https://${options.domain}/${options.tenantId}/${options.authorizationServerId}/oauth2/token` : options.tokenUri;
+    options.authorizationUri = options.domain ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/authorize` : options.authorizationUri;
+    options.tokenUri = options.domain ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/token` : options.tokenUri;
 
     return options;
   }
