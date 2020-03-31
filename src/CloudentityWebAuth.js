@@ -1,5 +1,4 @@
 // PKCE flow implemented based on https://github.com/aaronpk/pkce-vanilla-js by Aaron Parecki
-import ClientOAuth2 from 'client-oauth2';
 import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
 import superagent from 'superagent';
 
@@ -17,6 +16,8 @@ const optionsSpec = {
   domain: [],
   authorizationUri: [],
   tokenUri: [],
+  userInfoUri: [],
+  logoutUri: [],
   redirectUri: [
     {test: notEmptyString, message: '\'redirectUri\' [non-empty string] option is required'}
   ],
@@ -40,13 +41,6 @@ class CloudentityWebAuth {
     this.options = CloudentityWebAuth._parseOptions(options);
 
     const {clientId, redirectUri, authorizationUri, scopes} = this.options;
-
-    this.oauth = new ClientOAuth2({
-      clientId,
-      redirectUri,
-      authorizationUri,
-      scopes
-    })
   }
 
   /**
@@ -86,6 +80,18 @@ class CloudentityWebAuth {
    *
    * @returns {Promise}
    */
+  userInfo (accessToken) {
+    return superagent.get(this.options.userInfoUri).set('Accept', 'application/json').set('Authorization', 'Bearer ' + accessToken).then(
+      res => res.body,
+      rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
+    );
+  }
+
+  /**
+   * Gets authorization data from URL hash after OAuth redirection as a promise.
+   *
+   * @returns {Promise}
+   */
   getAuth () {
     const queryString = CloudentityWebAuth._parseQueryString(global.window.location.search.substring(1));
 
@@ -105,12 +111,33 @@ class CloudentityWebAuth {
             rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
           );
       }
+    } else if (global.window.localStorage.getItem('access_token') && global.window.localStorage.getItem('expires_at')) {
+      return Promise.resolve({
+        access_token: global.window.localStorage.getItem('access_token'),
+        expires_at: global.window.localStorage.getItem('expires_at')
+      });
+    } else {
+      return Promise.reject({error: ERRORS.UNAUTHORIZED});
     }
-
-    return this.oauth.token.getToken(global.window.location.href).then(
-      auth => auth.tokenType && auth.accessToken && !auth.expired() ? Promise.resolve(auth.data) : Promise.reject({error: ERRORS.UNAUTHORIZED})
-    );
   }
+
+  /**
+   * Revokes access token (logout).
+   *
+   * @returns {Promise}
+   */
+   revokeAuth () {
+     let token = global.window.localStorage.getItem('access_token');
+     return superagent.post(this.options.logoutUri)
+      .send({token: token})
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .set('Accept', 'application/json')
+      .set('Authorization', 'Bearer ' + token)
+      .then(
+        res => res.body,
+        rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
+      );
+   }
 
   static _parseOptions (options) {
     const error = validateOptions(options);
@@ -119,8 +146,18 @@ class CloudentityWebAuth {
       throw new Error(error);
     }
 
-    options.authorizationUri = options.domain ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/authorize` : options.authorizationUri;
-    options.tokenUri = options.domain ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/token` : options.tokenUri;
+    options.authorizationUri = options.domain
+      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/authorize`
+      : options.authorizationUri;
+    options.tokenUri = options.domain
+      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/token`
+      : options.tokenUri;
+    options.userInfoUri = options.domain
+      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}userinfo`
+      : options.userInfoUri;
+    options.logoutUri = options.domain
+      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/revoke`
+      : options.logoutUri;
 
     return options;
   }
