@@ -94,10 +94,15 @@ class CloudentityWebAuth {
    */
   getAuth () {
     const queryString = CloudentityWebAuth._parseQueryString(global.window.location.search.substring(1));
+    const cleanUpPkceLocalStorageItems = () => {
+      global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
+      global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
+    };
 
     if (queryString.code) {
       if (global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
-        Promise.reject({error: ERRORS.UNAUTHORIZED})
+        cleanUpPkceLocalStorageItems();
+        return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
         return superagent.post(this.options.tokenUri)
           .type('form')
@@ -107,8 +112,14 @@ class CloudentityWebAuth {
           .send(`redirect_uri=${this.options.redirectUri}`)
           .send(`code_verifier=${global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`)}`)
           .then(
-            res => res.body,
-            rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
+            res => {
+              cleanUpPkceLocalStorageItems();
+              return res.body;
+            },
+            rej => {
+              cleanUpPkceLocalStorageItems();
+              return Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response ? rej.response.body : 'Unknown error'});
+            }
           );
       }
     } else if (global.window.localStorage.getItem('access_token') && global.window.localStorage.getItem('expires_at')) {
@@ -191,11 +202,6 @@ class CloudentityWebAuth {
     let queryString = {};
     segments.forEach(s => queryString[s[0]] = s[1]);
     return queryString;
-  }
-
-  static _cleanUpPkceLocalStorageItems () {
-    global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
-    global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
   }
 }
 
