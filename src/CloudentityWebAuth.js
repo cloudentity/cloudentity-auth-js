@@ -4,6 +4,7 @@ import superagent from 'superagent';
 
 const ERRORS = {
   UNAUTHORIZED: 'Unauthorized',
+  EXPIRED: 'Session expired',
   ERROR: 'Error'
 };
 
@@ -21,6 +22,7 @@ const optionsSpec = {
   redirectUri: [
     {test: notEmptyString, message: '\'redirectUri\' [non-empty string] option is required'}
   ],
+  silentAuthRedirectUri: [],
   scopes: [
     {test: notEmptyStringArray, message: '\'scopes\' [non-empty array of strings] option is required'}
   ]
@@ -46,7 +48,7 @@ class CloudentityWebAuth {
   /**
    * Initiates OAuth2 PKCE flow (redirecting to Cloudentity authorization page)
    */
-  authorize () {
+  authorize (options) {
      const pkceChallengeFromVerifier = async (v) => {
        const hashed = await CloudentityWebAuth._encodeSha256(v);
        return CloudentityWebAuth._base64urlencode(hashed);
@@ -59,19 +61,22 @@ class CloudentityWebAuth {
      const code_verifier = CloudentityWebAuth._generateRandomString();
      global.window.localStorage.setItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`, code_verifier);
 
+     const silentAuthEnabled = options && options.silentAuth === true;
+
      // Hash and base64-urlencode the secret to use as the challenge
      // const code_challenge = () => pkceChallengeFromVerifier(code_verifier).then(v => v);
      return pkceChallengeFromVerifier(code_verifier)
       .then(challenge => {
         global.window.location.href = this.options.authorizationUri
-          + "?response_type=code"
-          + "&client_id=" + encodeURIComponent(this.options.clientId)
-          + "&state=" + encodeURIComponent(state)
-          + "&scope=" + encodeURIComponent(this.options.scopes.join(' '))
-          + "&redirect_uri=" + encodeURIComponent(this.options.redirectUri)
-          + "&code_challenge=" + encodeURIComponent(challenge)
-          + "&code_challenge_method=S256";
-      })
+          + '?response_type=code'
+          + '&client_id=' + encodeURIComponent(this.options.clientId)
+          + '&state=' + encodeURIComponent(state)
+          + '&scope=' + encodeURIComponent(this.options.scopes.join(' '))
+          + '&redirect_uri=' + encodeURIComponent(silentAuthEnabled && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : this.options.redirectUri)
+          + '&code_challenge=' + encodeURIComponent(challenge)
+          + '&code_challenge_method=S256'
+          + `${silentAuthEnabled ? '&prompt=none' : ''}`;
+      });
    }
 
   /**
@@ -114,6 +119,10 @@ class CloudentityWebAuth {
           .then(
             res => {
               cleanUpPkceLocalStorageItems();
+              global.window.localStorage.setItem('access_token', res.body.access_token);
+              if (res.body.id_token) {
+                global.window.localStorage.setItem('id_token', res.body.id_token);
+              }
               return res.body;
             },
             rej => {
@@ -122,11 +131,17 @@ class CloudentityWebAuth {
             }
           );
       }
-    } else if (global.window.localStorage.getItem('access_token') && global.window.localStorage.getItem('expires_at')) {
-      return Promise.resolve({
-        access_token: global.window.localStorage.getItem('access_token'),
-        expires_at: global.window.localStorage.getItem('expires_at')
-      });
+    } else if (global.window.localStorage.getItem('access_token')) {
+      let token = global.window.localStorage.getItem('access_token');
+      let issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
+      let expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
+      let timeToExpiration = CloudentityWebAuth._timeToExpiration(issuedAtTime, expiresAtTime);
+      if (timeToExpiration > 0) {
+        return Promise.resolve();
+      } else {
+        global.window.localStorage.removeItem('access_token');
+        return Promise.reject({error: ERRORS.EXPIRED});
+      }
     } else {
       return Promise.reject({error: ERRORS.UNAUTHORIZED});
     }
@@ -139,15 +154,41 @@ class CloudentityWebAuth {
    */
    revokeAuth () {
      let token = global.window.localStorage.getItem('access_token');
+     const clearAuthTokens = () => {
+       global.window.localStorage.removeItem('access_token');
+       global.window.localStorage.removeItem('id_token');
+     };
      return superagent.post(this.options.logoutUri)
       .send({token: token})
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .set('Accept', 'application/json')
       .set('Authorization', 'Bearer ' + token)
       .then(
-        res => res.body,
-        rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
+        res => {
+          clearAuthTokens();
+          return res.body;
+        },
+        rej => {
+          clearAuthTokens();
+          return Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body});
+        }
       );
+   }
+
+   /**
+    * Utility function to help determine when to initiate silent authentication.
+    *
+    * @returns {Number}
+    */
+   calculateTimeToExpirationRatio () {
+     const token = global.window.localStorage.getItem('access_token');
+     const issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
+     const expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
+     const lifetimeInSec = (expiresAtTime - issuedAtTime);
+     const currentTime = new Date().getTime() / 1000;
+     const validForInSec = expiresAtTime - currentTime;
+     const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
+     return ratio;
    }
 
   static _parseOptions (options) {
@@ -202,6 +243,17 @@ class CloudentityWebAuth {
     let queryString = {};
     segments.forEach(s => queryString[s[0]] = s[1]);
     return queryString;
+  }
+
+  static _getValueFromToken (field, token) {
+    let tokenToObject = token ? JSON.parse(global.window.atob(token.split('.')[1])) : {};
+    return tokenToObject[field];
+  }
+
+  static _timeToExpiration (iat, exp) {
+    const lifetimeInSec = (exp - iat);
+    const current = new Date().getTime() / 1000;
+    return exp - current;
   }
 }
 
