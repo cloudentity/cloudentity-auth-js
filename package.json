@@ -1,6 +1,6 @@
 {
   "name": "cloudentity-web-auth",
-  "version": "0.10.0",
+  "version": "1.0.0-ACP",
   "description": "",
   "main": "dist/cloudentity-web-auth.js",
   "scripts": {
@@ -20,8 +20,7 @@
     "registry": "https://artifactory.syntegrity.com/api/npm/npm-local"
   },
   "dependencies": {
-    "ramda": "^0.25.0",
-    "superagent": "^3.8.2"
+    "ramda": "^0.25.0"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",

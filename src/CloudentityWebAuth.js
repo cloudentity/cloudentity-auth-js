@@ -1,6 +1,5 @@
 // PKCE flow implemented based on https://github.com/aaronpk/pkce-vanilla-js by Aaron Parecki
 import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
-import superagent from 'superagent';
 
 const ERRORS = {
   UNAUTHORIZED: 'Unauthorized',
@@ -85,11 +84,20 @@ class CloudentityWebAuth {
    *
    * @returns {Promise}
    */
-  userInfo (accessToken) {
-    return superagent.get(this.options.userInfoUri).set('Accept', 'application/json').set('Authorization', 'Bearer ' + accessToken).then(
-      res => res.body,
-      rej => Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body})
-    );
+  userInfo () {
+    let token = global.window.localStorage.getItem('access_token');
+    if (!token) {
+      return Promise.reject({error: ERRORS.UNAUTHORIZED});
+    }
+    return global.window.fetch(this.options.userInfoUri, {
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer ' + token
+      }
+    })
+    .then(CloudentityWebAuth._handleApiResponse)
+    .then(data => data)
+    .catch(err => Promise.reject(err));
   }
 
   /**
@@ -109,27 +117,32 @@ class CloudentityWebAuth {
         cleanUpPkceLocalStorageItems();
         return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
-        return superagent.post(this.options.tokenUri)
-          .type('form')
-          .send('grant_type=authorization_code')
-          .send(`code=${queryString.code}`)
-          .send(`client_id=${this.options.clientId}`)
-          .send(`redirect_uri=${this.options.redirectUri}`)
-          .send(`code_verifier=${global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`)}`)
-          .then(
-            res => {
-              cleanUpPkceLocalStorageItems();
-              global.window.localStorage.setItem('access_token', res.body.access_token);
-              if (res.body.id_token) {
-                global.window.localStorage.setItem('id_token', res.body.id_token);
-              }
-              return res.body;
-            },
-            rej => {
-              cleanUpPkceLocalStorageItems();
-              return Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response ? rej.response.body : 'Unknown error'});
-            }
-          );
+        const verificationData = 'grant_type=authorization_code'
+          + '&code=' + encodeURIComponent(queryString.code)
+          + '&client_id=' + encodeURIComponent(this.options.clientId)
+          + '&redirect_uri=' + encodeURIComponent(this.options.redirectUri)
+          + '&code_verifier=' + encodeURIComponent(global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
+
+        return global.window.fetch(this.options.tokenUri, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body: verificationData
+        })
+        .then(CloudentityWebAuth._handleApiResponse)
+        .then(data => {
+          cleanUpPkceLocalStorageItems();
+          global.window.localStorage.setItem('access_token', data.access_token);
+          if (data.id_token) {
+            global.window.localStorage.setItem('id_token', res.body.id_token);
+          }
+          return data;
+        })
+        .catch(err => {
+          cleanUpPkceLocalStorageItems();
+          return Promise.reject(err);
+        });
       }
     } else if (global.window.localStorage.getItem('access_token')) {
       let token = global.window.localStorage.getItem('access_token');
@@ -139,7 +152,7 @@ class CloudentityWebAuth {
       if (timeToExpiration > 0) {
         return Promise.resolve();
       } else {
-        global.window.localStorage.removeItem('access_token');
+        CloudentityWebAuth._clearAuthTokens();
         return Promise.reject({error: ERRORS.EXPIRED});
       }
     } else {
@@ -154,25 +167,23 @@ class CloudentityWebAuth {
    */
    revokeAuth () {
      let token = global.window.localStorage.getItem('access_token');
-     const clearAuthTokens = () => {
-       global.window.localStorage.removeItem('access_token');
-       global.window.localStorage.removeItem('id_token');
-     };
-     return superagent.post(this.options.logoutUri)
-      .send({token: token})
-      .set('Content-Type', 'application/x-www-form-urlencoded')
-      .set('Accept', 'application/json')
-      .set('Authorization', 'Bearer ' + token)
-      .then(
-        res => {
-          clearAuthTokens();
-          return res.body;
-        },
-        rej => {
-          clearAuthTokens();
-          return Promise.reject(rej.status === 401 ? {error: ERRORS.UNAUTHORIZED} : {error: ERRORS.ERROR, message: rej.response.body});
-        }
-      );
+     return global.window.fetch(this.options.logoutUri, {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/x-www-form-urlencoded',
+         'Accept': 'application/json',
+         'Authorization': 'Bearer ' + token
+       }
+     })
+     .then(CloudentityWebAuth._handleApiResponse)
+     .then(data => {
+       CloudentityWebAuth._clearAuthTokens();
+       return data;
+     })
+     .catch(err => {
+       CloudentityWebAuth._clearAuthTokens();
+       return Promise.reject(err);
+     });
    }
 
    /**
@@ -213,6 +224,25 @@ class CloudentityWebAuth {
 
     return options;
   }
+
+  static _handleApiResponse (response) {
+    return response.json()
+      .then(json => {
+        if (response.ok) {
+          return json;
+        } else {
+          if (response.status === 401) {
+            return Promise.reject({error: ERRORS.UNAUTHORIZED});
+          }
+          return Promise.reject({error: ERRORS.ERROR, message: json.error_description || 'Unknown error'});
+        }
+      });
+  }
+
+  static _clearAuthTokens () {
+    global.window.localStorage.removeItem('access_token');
+    global.window.localStorage.removeItem('id_token');
+  };
 
   static _generateRandomString () {
     const array = new Uint32Array(28);
