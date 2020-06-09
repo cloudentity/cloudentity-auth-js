@@ -1,11 +1,15 @@
 // PKCE flow implemented based on https://github.com/aaronpk/pkce-vanilla-js by Aaron Parecki
-import {notEmptyStringArray, notEmptyString, validateObject} from "./utils/validators";
+import {stringOrEmptyArray, notEmptyString, validateObject} from './utils/validators';
+import {generateRandomString, pkceChallengeFromVerifier} from './utils/pkce.utils';
+import throttle from './utils/throttle';
 
 const ERRORS = {
   UNAUTHORIZED: 'Unauthorized',
   EXPIRED: 'Session expired',
   ERROR: 'Error'
 };
+const SILENT_AUTH_SUCCESS_MESSAGE = 'silentAuthSuccess';
+const SILENT_AUTH_ERROR_MESSAGE = 'silentAuthFailure';
 
 const optionsSpec = {
   clientId: [
@@ -23,8 +27,10 @@ const optionsSpec = {
   ],
   silentAuthRedirectUri: [],
   scopes: [
-    {test: notEmptyStringArray, message: '\'scopes\' [non-empty array of strings] option is required'}
-  ]
+    {test: stringOrEmptyArray, message: '\'scopes\' [array of strings or empty array] option is required'}
+  ],
+  timeoutRatioFactor: [],
+  tokenExpirationRatioCheckInterval: []
 };
 
 const validateOptions = validateObject(optionsSpec);
@@ -47,34 +53,10 @@ class CloudentityWebAuth {
   /**
    * Initiates OAuth2 PKCE flow (redirecting to Cloudentity authorization page)
    */
-  authorize (options) {
-     const pkceChallengeFromVerifier = async (v) => {
-       const hashed = await CloudentityWebAuth._encodeSha256(v);
-       return CloudentityWebAuth._base64urlencode(hashed);
-     };
-     // Create and store a random "state" value
-     const state = CloudentityWebAuth._generateRandomString();
-     global.window.localStorage.setItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`, state);
-
-     // Create and store a new PKCE code_verifier (the plaintext random secret)
-     const code_verifier = CloudentityWebAuth._generateRandomString();
-     global.window.localStorage.setItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`, code_verifier);
-
-     const silentAuthEnabled = options && options.silentAuth === true;
-
-     // Hash and base64-urlencode the secret to use as the challenge
-     // const code_challenge = () => pkceChallengeFromVerifier(code_verifier).then(v => v);
-     return pkceChallengeFromVerifier(code_verifier)
-      .then(challenge => {
-        global.window.location.href = this.options.authorizationUri
-          + '?response_type=code'
-          + '&client_id=' + encodeURIComponent(this.options.clientId)
-          + '&state=' + encodeURIComponent(state)
-          + '&scope=' + encodeURIComponent(this.options.scopes.join(' '))
-          + '&redirect_uri=' + encodeURIComponent(silentAuthEnabled && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : this.options.redirectUri)
-          + '&code_challenge=' + encodeURIComponent(challenge)
-          + '&code_challenge_method=S256'
-          + `${silentAuthEnabled ? '&prompt=none' : ''}`;
+  authorize () {
+    CloudentityWebAuth._calcAuthorizationUrl(this.options)
+      .then(authorizationUri => {
+        global.window.location.href = authorizationUri;
       });
    }
 
@@ -135,7 +117,7 @@ class CloudentityWebAuth {
           cleanUpPkceLocalStorageItems();
           global.window.localStorage.setItem('access_token', data.access_token);
           if (data.id_token) {
-            global.window.localStorage.setItem('id_token', res.body.id_token);
+            global.window.localStorage.setItem('id_token', data.id_token);
           }
           return data;
         })
@@ -186,20 +168,48 @@ class CloudentityWebAuth {
      });
    }
 
-   /**
-    * Utility function to help determine when to initiate silent authentication.
-    *
-    * @returns {Number}
-    */
-   calculateTimeToExpirationRatio () {
-     const token = global.window.localStorage.getItem('access_token');
-     const issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
-     const expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
-     const lifetimeInSec = (expiresAtTime - issuedAtTime);
-     const currentTime = new Date().getTime() / 1000;
-     const validForInSec = expiresAtTime - currentTime;
-     const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
-     return ratio;
+   silentAuthentication () {
+     const startSilentAuthentication = async (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
+       const iframeExists = document.querySelector(`#${iframeId}`);
+       iframeExists && document.body.removeChild(iframeToRemove);
+
+       const iframe = document.createElement('iframe');
+       const src = await CloudentityWebAuth._calcAuthorizationUrl(this.options, true, methodHint);
+       iframe.setAttribute('src', src);
+       iframe.setAttribute('id', iframeId);
+       iframe.style.display = 'none';
+       const listener = e => {
+         if (e.data === (SILENT_AUTH_SUCCESS_MESSAGE || SILENT_AUTH_ERROR_MESSAGE)) {
+           const iframeToRemove = document.querySelector(`#${iframeId}`);
+           iframeToRemove && document.body.removeChild(iframeToRemove);
+           window.removeEventListener('message', listener);
+         }
+       };
+
+       window.addEventListener('message', listener);
+
+       document.body.appendChild(iframe);
+     };
+
+     const silentAuthenticationThrottled = throttle(startSilentAuthentication, 10000);
+
+     const counter = global.window.setInterval(async () => {
+       const token = global.window.localStorage.getItem('access_token');
+       const issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
+       const expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
+       const methodHint = CloudentityWebAuth._getValueFromToken('mth', token);
+
+       const lifetimeInSec = (expiresAtTime - issuedAtTime);
+       const current = new Date().getTime() / 1000;
+       const validForInSec = expiresAtTime - current;
+       const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
+
+       if (ratio > (this.options.timeoutRatioFactor || 0.75) || !token) {
+         silentAuthenticationThrottled(this.options.tenantId, this.options.authorizationServerId, this.options.scopes, methodHint, 'silent-auth-iframe');
+       }
+     }, this.options.tokenExpirationRatioCheckInterval || 5000);
+
+     return () => global.window.clearInterval(counter);
    }
 
   static _parseOptions (options) {
@@ -239,31 +249,32 @@ class CloudentityWebAuth {
       });
   }
 
+  static async _calcAuthorizationUrl (options, silentAuth, methodHint) {
+    const state = generateRandomString();
+    global.window.localStorage.setItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, state);
+
+    // Create and store a new PKCE code_verifier (the plaintext random secret)
+    const codeVerifier = generateRandomString();
+    global.window.localStorage.setItem(`${options.tenantId}_${options.authorizationServerId}_pkce_code_verifier`, codeVerifier);
+
+    // Hash and base64-urlencode the secret to use as the challenge
+    const codeChallenge = await pkceChallengeFromVerifier(codeVerifier);
+
+    return options.authorizationUri
+      + '?response_type=code'
+      + '&client_id=' + encodeURIComponent(options.clientId)
+      + '&state=' + encodeURIComponent(state)
+      + '&scope=' + encodeURIComponent(options.scopes.join(' '))
+      + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
+      + '&code_challenge=' + encodeURIComponent(codeChallenge)
+      + '&code_challenge_method=S256'
+      + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
+  }
+
   static _clearAuthTokens () {
     global.window.localStorage.removeItem('access_token');
     global.window.localStorage.removeItem('id_token');
   };
-
-  static _generateRandomString () {
-    const array = new Uint32Array(28);
-    global.window.crypto.getRandomValues(array);
-    return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
-  }
-
-  static _encodeSha256 (plain) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(plain);
-    return global.window.crypto.subtle.digest('SHA-256', data);
-  }
-
-  static _base64urlencode (str) {
-    // Convert the ArrayBuffer to string using Uint8 array to conver to what btoa accepts.
-    // btoa accepts chars only within ascii 0-255 and base64 encodes them.
-    // Then convert the base64 encoded to base64url encoded
-    //   (replace + with -, replace / with _, trim trailing =)
-    return btoa(String.fromCharCode.apply(null, new Uint8Array(str)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
 
   static _parseQueryString (string) {
     if (string === '') {

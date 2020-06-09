@@ -33,6 +33,8 @@ export const onlyStrings = compose(isEmpty, filter(complement(isString)));
 
 export const notEmptyStringArray = compose(both(notEmpty, onlyStrings), toArray);
 
+// temp dev fix prior to replacing ramda with pure JS validators
+export const stringOrEmptyArray = compose(onlyStrings, toArray);
 
 const executeValidator = curry((validator, value, object) => validator.test(value, object) ? ({status: true}) : ({
   status: false,
