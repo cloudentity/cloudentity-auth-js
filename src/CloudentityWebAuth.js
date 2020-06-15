@@ -29,18 +29,21 @@ const optionsSpec = {
   scopes: [
     {test: stringOrEmptyArray, message: '\'scopes\' [array of strings or empty array] option is required'}
   ],
+  accessTokenName: [],
+  idTokenName: [],
   timeoutRatioFactor: [],
-  tokenExpirationRatioCheckInterval: []
+  tokenExpirationRatioCheckInterval: [],
+  implicit: []
 };
 
 const validateOptions = validateObject(optionsSpec);
 
 /**
- * Cloudentity OAuth2 implicit flow client for Javascript SPAs
+ * Cloudentity OAuth2 flow client for Javascript SPAs
  */
 class CloudentityWebAuth {
   /**
-   * Creates CloudentityWebAuth client to handle OAuth2 implicit flow
+   * Creates CloudentityWebAuth client to handle OAuth2 flow
    *
    * @param {Object} options
    */
@@ -52,12 +55,17 @@ class CloudentityWebAuth {
 
   /**
    * Initiates OAuth2 PKCE flow (redirecting to Cloudentity authorization page)
+   * Implicit flow is supported, but not recommended in most circumstances due to potential security issues.
    */
   authorize () {
-    CloudentityWebAuth._calcAuthorizationUrl(this.options)
-      .then(authorizationUri => {
-        global.window.location.href = authorizationUri;
-      });
+    if (this.options.implicit === true) {
+      global.window.location.href = CloudentityWebAuth._calcAuthorizationUrlImplicit(this.options);
+    } else {
+      CloudentityWebAuth._calcAuthorizationUrl(this.options)
+        .then(authorizationUri => {
+          global.window.location.href = authorizationUri;
+        });
+    }
    }
 
   /**
@@ -67,7 +75,7 @@ class CloudentityWebAuth {
    * @returns {Promise}
    */
   userInfo () {
-    let token = global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`);
+    const token = CloudentityWebAuth._getAccessToken(this.options);
     if (!token) {
       return Promise.reject({error: ERRORS.UNAUTHORIZED});
     }
@@ -89,10 +97,23 @@ class CloudentityWebAuth {
    */
   getAuth () {
     const queryString = CloudentityWebAuth._parseQueryString(global.window.location.search.substring(1));
+    const hashString = CloudentityWebAuth._parseQueryString(global.window.location.hash.substring(1));
+
     const cleanUpPkceLocalStorageItems = () => {
       global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
       global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
     };
+
+    if (this.options.implicit === true && hashString.access_token) {
+      CloudentityWebAuth._setAccessToken(this.options, hashString.access_token);
+      if (hashString.id_token) {
+        CloudentityWebAuth._setIdToken(this.options, hashString.id_token);
+      }
+      global.window.history.replaceState('', global.window.document.title, global.window.location.pathname + global.window.location.search);
+      return Promise.resolve(hashString);
+    }
+
+    const accessToken = CloudentityWebAuth._getAccessToken(this.options);
 
     if (queryString.code) {
       if (global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
@@ -115,9 +136,9 @@ class CloudentityWebAuth {
         .then(CloudentityWebAuth._handleApiResponse)
         .then(data => {
           cleanUpPkceLocalStorageItems();
-          global.window.localStorage.setItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`, data.access_token);
+          CloudentityWebAuth._setAccessToken(this.options, data.access_token);
           if (data.id_token) {
-            global.window.localStorage.setItem(`${this.options.tenantId}_${this.options.authorizationServerId}_id_token`, data.id_token);
+            CloudentityWebAuth._setIdToken(this.options, data.id_token);
           }
           return data;
         })
@@ -126,10 +147,9 @@ class CloudentityWebAuth {
           return Promise.reject(err);
         });
       }
-    } else if (global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`)) {
-      let token = global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`);
-      let issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
-      let expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
+    } else if (accessToken) {
+      let issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', accessToken);
+      let expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', accessToken);
       let timeToExpiration = CloudentityWebAuth._timeToExpiration(issuedAtTime, expiresAtTime);
       if (timeToExpiration > 0) {
         return Promise.resolve();
@@ -148,7 +168,7 @@ class CloudentityWebAuth {
    * @returns {Promise}
    */
    revokeAuth () {
-     let token = global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`);
+     const token = CloudentityWebAuth._getAccessToken(this.options);
      return global.window.fetch(this.options.logoutUri, {
        method: 'POST',
        headers: {
@@ -168,6 +188,10 @@ class CloudentityWebAuth {
      });
    }
 
+   /**
+    * Initiates 'silent' authentication.
+    * If user has opted to stay logged in on their device, this method issues a new access token if the current token is about to expire.
+    */
    async silentAuthentication () {
      const startSilentAuthentication = async (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
        const existingIframe = document.querySelector(`#${iframeId}`);
@@ -193,7 +217,7 @@ class CloudentityWebAuth {
 
      const silentAuthenticationThrottled = throttle(startSilentAuthentication, 10000);
 
-     const token = global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_access_token`);
+     const token = CloudentityWebAuth._getAccessToken(this.options);
      const issuedAtTime = CloudentityWebAuth._getValueFromToken('iat', token);
      const expiresAtTime = CloudentityWebAuth._getValueFromToken('exp', token);
      const methodHint = CloudentityWebAuth._getValueFromToken('mth', token);
@@ -267,9 +291,29 @@ class CloudentityWebAuth {
       + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
   }
 
+  static _calcAuthorizationUrlImplicit (options) {
+    return options.authorizationUri
+      + '?response_type=token'
+      + '&client_id=' + encodeURIComponent(options.clientId)
+      + '&scope=' + encodeURIComponent(options.scopes.join(' '))
+      + '&redirect_uri=' + encodeURIComponent(options.redirectUri);
+  }
+
+  static _getAccessToken (options) {
+    return global.window.localStorage.getItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
+  }
+
+  static _setAccessToken (options, value) {
+    global.window.localStorage.setItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`, value);
+  }
+
+  static _setIdToken (options, value) {
+    global.window.localStorage.setItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`, value);
+  }
+
   static _clearAuthTokens (options) {
-    global.window.localStorage.removeItem(`${options.tenantId}_${options.authorizationServerId}_access_token`);
-    global.window.localStorage.removeItem(`${options.tenantId}_${options.authorizationServerId}_id_token`);
+    global.window.localStorage.removeItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
+    global.window.localStorage.removeItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
   };
 
   static _parseQueryString (string) {
