@@ -1,52 +1,51 @@
-import complement from 'ramda/es/complement';
-import isEmpty from 'ramda/es/isEmpty';
-import compose from 'ramda/es/compose';
-import trim from 'ramda/es/trim';
-import map from 'ramda/es/map';
-import mapObjIndexed from 'ramda/es/mapObjIndexed';
-import curry from 'ramda/es/curry';
-import filter from 'ramda/es/filter';
-import pickBy from 'ramda/es/pickBy';
-import head from 'ramda/es/head';
-import prop from 'ramda/es/prop';
-import values from 'ramda/es/values';
-import both from 'ramda/es/both';
+const compose = (...fns) => x => fns.reduceRight((y, f) => f(y), x);
 
-
-const isObject = v => typeof v === 'object';
+const flattenArray = arr => [].concat(...arr);
 
 const isString = v => typeof v === 'string';
 
-const isArray = v => typeof v === 'object' && v.length;
+const isArray = v => Array.isArray(v);
 
 const toString = v => isString(v) ? v : '';
 
 const toArray = v => isArray(v) ? v : [];
 
-const toObject = v => isObject(v) ? v : {};
+const notEmptyArray = v => isArray(v) && v.length > 0;
 
-export const notEmpty = complement(isEmpty);
+export const notEmptyString = v => isString(v) && v.trim().length > 0;
 
-export const notEmptyString = compose(notEmpty, trim, toString);
+export const notEmptyStringArray = compose(v => (v.every(notEmptyString) && notEmptyArray(v)), toArray);
 
-export const onlyStrings = compose(isEmpty, filter(complement(isString)));
+export const stringOrEmptyArray = compose(v => v.every(notEmptyString), toArray);
 
-export const notEmptyStringArray = compose(both(notEmpty, onlyStrings), toArray);
-
-// temp dev fix prior to replacing ramda with pure JS validators
-export const stringOrEmptyArray = compose(onlyStrings, toArray);
-
-const executeValidator = curry((validator, value, object) => validator.test(value, object) ? ({status: true}) : ({
+const executeValidator = (validator, value, object) => validator.test(value, object) ? ({status: true}) : ({
   status: false,
   message: validator.message
-}));
+});
 
-const executeValidators = curry((validators, value, object) => map(validator => executeValidator(validator, value, object), validators));
+const executeValidators = (validators, value, object) => validators.map(validator => executeValidator(validator, value, object));
 
-const getAllResults = (validators, object) => mapObjIndexed((v, k) => executeValidators(v || [], object[k], object), validators);
+const getAllResults = (validators, object) => {
+  let results = Object.keys(validators).map(k => {
+    let result = executeValidators(validators[k] || [], object[k], object);
+    let validationErrors = result.filter(v => !v.status && v.message);
+    if (validationErrors.length) {
+      return validationErrors;
+    }
+  }).filter(v => v);
 
-const leaveOnlyErrors = compose(pickBy(notEmpty), map(filter(v => !v.status)));
+  return flattenArray(results);
+};
 
-const getFirstMessage = compose(prop('message'), head);
-
-export const validateObject = curry((validators, object) => compose(head, values, map(getFirstMessage), leaveOnlyErrors, getAllResults)(validators, toObject(object)));
+export const validateObject = (validators) => {
+  return function (configObject) {
+    const allResults = getAllResults(validators, configObject);
+    if (allResults.length) {
+      let errorMessage = 'CloudentityWebAuth: ';
+      allResults.forEach((r, i) => i === allResults.length - 1 ? errorMessage += r.message : errorMessage += `${r.message}, `);
+      return errorMessage;
+    } else {
+      return null;
+    }
+  };
+};
