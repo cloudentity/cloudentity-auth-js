@@ -1,4 +1,3 @@
-// PKCE flow implemented based on https://github.com/aaronpk/pkce-vanilla-js by Aaron Parecki
 import {stringOrEmptyArray, notEmptyString, validateObject} from './utils/validators';
 import {generateRandomString, pkceChallengeFromVerifier} from './utils/pkce.utils';
 import throttle from './utils/throttle';
