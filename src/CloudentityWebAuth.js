@@ -174,13 +174,10 @@ class CloudentityWebAuth {
          'Content-Type': 'application/x-www-form-urlencoded',
          'Accept': 'application/json',
          'Authorization': 'Bearer ' + token
-       }
+       },
+       body: `token=${token}`
      })
-     .then(CloudentityWebAuth._handleApiResponse)
-     .then(data => {
-       CloudentityWebAuth._clearAuthTokens(this.options);
-       return data;
-     })
+     .then(() => CloudentityWebAuth._clearAuthTokens(this.options))
      .catch(err => {
        CloudentityWebAuth._clearAuthTokens(this.options);
        return Promise.reject(err);
