@@ -27,11 +27,13 @@ module.exports = env => {
       rules: [
         {
           test: /\.js$/,
+          exclude: /node_modules/,
           use: [
             {
               loader: 'babel-loader',
               options: {
-                presets: ['es2015'],
+                presets: ['es2015', 'stage-3'],
+                plugins: ['transform-runtime']
               }
             }
           ],
