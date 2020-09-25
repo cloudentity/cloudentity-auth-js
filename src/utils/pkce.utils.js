@@ -1,9 +1,11 @@
+const crypto = window.crypto || window.msCrypto; // IE11 uses 'msCrypto'
+
 // https://github.com/aaronpk/pkce-vanilla-js
 
 // Generate a secure random string using the browser crypto functions
 export const generateRandomString = () => {
   const array = new Uint32Array(28);
-  window.crypto.getRandomValues(array);
+  crypto.getRandomValues(array);
   return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
 };
 
@@ -12,7 +14,20 @@ export const generateRandomString = () => {
 async function sha256 (plain) {
   const encoder = new TextEncoder();
   const data = encoder.encode(plain);
-  return window.crypto.subtle.digest('SHA-256', data);
+  if (window.CryptoOperation) {
+    // in IE11, window.msCrypto.subtle.digest returns CryptoOperation instead of Promise
+    return new Promise((resolve, reject) => {
+      try {
+        crypto.subtle.digest('SHA-256', data).oncomplete = function (e) {
+          return resolve(e && e.target && e.target.result);
+        }
+      } catch (err) {
+        return reject(err);
+      }
+    });
+  } else {
+    return crypto.subtle.digest('SHA-256', data);
+  }
 }
 
 // Base64-urlencodes the input string
