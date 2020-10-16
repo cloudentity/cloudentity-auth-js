@@ -1,5 +1,9 @@
 ## [Unreleased]
 ### Added
+- Refactor to use Cloudentity ACP and PKCE as default authorization method
+
+## [Unreleased]
+### Added
 - initial client (basic OAuth implicit flow support) - WIP
 - basic options validation
 - basic documentation - WIP
@@ -10,4 +14,4 @@
 ## [Project init]
 ### Added
 - initial project files
-- EULA 
+- EULA
