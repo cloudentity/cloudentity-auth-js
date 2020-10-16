@@ -62,3 +62,6 @@ Cloudentity Web Auth client for Javascript Single Page Apps.
         ```javascript
         cloudentity.revokeAuth(); // revokes token, and clears access/id tokens from browser's local storage
         ```
+
+To use with SPAs that must support IE11:
+You must polyfill `Promise`, `TextEncoder`, and `fetch` in your SPA code for this library to work in IE11.
