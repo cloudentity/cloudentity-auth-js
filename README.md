@@ -21,7 +21,6 @@ Cloudentity Web Auth client for Javascript Single Page Apps.
 
 1. First – create and configure CloudentityWebAuth:
 
-        ```javascript
         var cloudentity = new CloudentityWebAuth({
             domain: 'your-domain', // e.g. 'example.demo.cloudentity.com'
             tenantId: 'your-tenant-id',
@@ -32,13 +31,11 @@ Cloudentity Web Auth client for Javascript Single Page Apps.
             accessTokenName: 'your_org_access_token' // optional; defaults to '{tenantId}_{authorizationServerId}_access_token'
             idTokenName: 'your_org_access_token' // optional; defaults to '{tenantId}_{authorizationServerId}_id_token'
         });
-        ```
 
-        Note: By default, PKCE authorization flow is used. Implicit flow can be used by including `{implicit: true}` in the configuration object passed into CloudentityWebAuth (this is not recommended).
+Note: By default, PKCE authorization flow is used. Implicit flow can be used by including `{implicit: true}` in the configuration object passed into CloudentityWebAuth (this is not recommended).
 
 2. To check if there's an OAuth response and parse it:
 
-        ```javascript
         cloudentity.getAuth().then(
           function (authResponse) {
             // use oauth data, etc.
@@ -49,19 +46,17 @@ Cloudentity Web Auth client for Javascript Single Page Apps.
             // user is not authorized
           }
         );
-        ```
 
 3. If not (e.g. this is the initial app load), to initialize OAuth2 PKCE flow:
 
-        ```javascript
         cloudentity.authorize(); // redirects to authorization service
-        ```
+
 
 4. For logout (make sure that the `revoke_tokens` scope is present):
 
-        ```javascript
+
         cloudentity.revokeAuth(); // revokes token, and clears access/id tokens from browser's local storage
-        ```
+
 
 To use with SPAs that must support IE11:
 You must polyfill `Promise`, `TextEncoder`, and `fetch` in your SPA code for this library to work in IE11.
