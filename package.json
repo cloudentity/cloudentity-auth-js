@@ -1,8 +1,8 @@
 {
-  "name": "cloudentity-web-auth",
+  "name": "cloudentity-auth-js",
   "version": "1.0.0-beta.0",
   "description": "",
-  "main": "dist/cloudentity-web-auth.js",
+  "main": "dist/cloudentity-auth-js.js",
   "scripts": {
     "clean": "rimraf dist",
     "webpack": "webpack",

@@ -1,27 +1,27 @@
-## Cloudentity Web Auth
+## Cloudentity Auth JS
 
-Cloudentity Web Auth client for Javascript Single Page Apps.
+Cloudentity Auth JS client for Javascript Single Page Apps.
 
 ## Import
 
 ### Script tag
 
-    <script src="cloudentity-web-auth.js"></script>
+    <script src="cloudentity-auth-js.js"></script>
 
 ### Node.js style
 
-    const CloudentityWebAuth = require('cloudentity-web-auth');
+    const CloudentityAuthJs = require('cloudentity-auth-js');
 
 ### ES6 import
 
-    import CloudentityWebAuth from 'cloudentity-web-auth';
+    import CloudentityAuthJs from 'cloudentity-auth-js';
 
 
 ## Usage
 
-1. First – create and configure CloudentityWebAuth:
+1. First – create and configure CloudentityAuthJs:
 
-        var cloudentity = new CloudentityWebAuth({
+        var cloudentity = new CloudentityAuthJs({
             domain: 'your-domain', // e.g. 'example.demo.cloudentity.com'
             tenantId: 'your-tenant-id',
             authorizationServerId: 'your-authorization-server-id',
@@ -32,7 +32,7 @@ Cloudentity Web Auth client for Javascript Single Page Apps.
             idTokenName: 'your_org_access_token' // optional; defaults to '{tenantId}_{authorizationServerId}_id_token'
         });
 
-Note: By default, PKCE authorization flow is used. Implicit flow can be used by including `{implicit: true}` in the configuration object passed into CloudentityWebAuth (this is not recommended).
+Note: By default, PKCE authorization flow is used. Implicit flow can be used by including `{implicit: true}` in the configuration object passed into CloudentityAuthJs (this is not recommended).
 
 2. To check if there's an OAuth response and parse it:
 
