@@ -1,4 +1,4 @@
-import {stringOrEmptyArray, notEmptyString, validateObject} from './utils/validators';
+import {stringOrEmptyArray, notEmptyString, optionalString, optionalNumber, optionalBoolean, validateObject} from './utils/validators';
 import {generateRandomString, pkceChallengeFromVerifier} from './utils/pkce.utils';
 import throttle from './utils/throttle';
 
@@ -14,28 +14,60 @@ const optionsSpec = {
   clientId: [
     {test: notEmptyString, message: '\'cliendId\' [non-empty string] option is required'}
   ],
-  tenantId: [],
-  authorizationServerId: [],
-  domain: [],
-  authorizationUri: [],
-  tokenUri: [],
-  userInfoUri: [],
-  logoutUri: [],
+  tenantId: [
+    {test: optionalString, message: '\'tenantId\' [non-empty string] option is required'}
+  ],
+  authorizationServerId: [
+    {test: optionalString, message: '\'authorizationServerId\' [non-empty string] required if option value given'}
+  ],
+  domain: [
+    {test: optionalString, message: '\'domain\' [non-empty string] required if option value given'}
+  ],
+  authorizationUri: [
+    {test: optionalString, message: '\'authorizationUri\' [non-empty string] required if option value given'}
+  ],
+  tokenUri: [
+    {test: optionalString, message: '\'tokenUri\' [non-empty string] required if option value given'}
+  ],
+  userInfoUri: [
+    {test: optionalString, message: '\'userInfoUri\' [non-empty string] required if option value given'}
+  ],
+  logoutUri: [
+    {test: optionalString, message: '\'logoutUri\' [non-empty string] required if option value given'}
+  ],
   redirectUri: [
     {test: notEmptyString, message: '\'redirectUri\' [non-empty string] option is required'}
   ],
-  silentAuthRedirectUri: [],
+  silentAuthRedirectUri: [
+    {test: optionalString, message: '\'silentAuthRedirectUri\' [non-empty string] required if option value given'}
+  ],
   scopes: [
     {test: stringOrEmptyArray, message: '\'scopes\' [array of strings or empty array] option is required'}
   ],
-  accessTokenName: [],
-  idTokenName: [],
-  timeoutRatioFactor: [],
-  tokenExpirationRatioCheckInterval: [],
-  implicit: []
+  accessTokenName: [
+    {test: optionalString, message: '\'accessTokenName\' [non-empty string] required if option value given'}
+  ],
+  idTokenName: [
+    {test: optionalString, message: '\'idTokenName\' [non-empty string] required if option value given'}
+  ],
+  timeoutRatioFactor: [
+    {test: optionalNumber, message: '\'timeoutRatioFactor\' [number] required if option value given'}
+  ],
+  tokenExpirationRatioCheckInterval: [
+    {test: optionalNumber, message: '\'tokenExpirationRatioCheckInterval\' [number] required if option value given'}
+  ],
+  implicit: [
+    {test: optionalBoolean, message: '\'implicit\' [boolean] required if option value given'}
+  ]
 };
 
 const validateOptions = validateObject(optionsSpec);
+
+const setLocalStorageItem = (id, val) => global.window.localStorage.setItem(id, val);
+
+const getLocalStorageItem = id => global.window.localStorage.getItem(id);
+
+const removeLocalStorageItem = id => global.window.localStorage.removeItem(id);
 
 /**
  * Cloudentity OAuth2 flow client for Javascript SPAs
@@ -99,8 +131,8 @@ class CloudentityAuthJs {
     const hashString = CloudentityAuthJs._parseQueryString(global.window.location.hash.substring(1));
 
     const cleanUpPkceLocalStorageItems = () => {
-      global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
-      global.window.localStorage.removeItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
+      removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
+      removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
     };
 
     if (this.options.implicit === true && hashString.access_token) {
@@ -115,7 +147,7 @@ class CloudentityAuthJs {
     const accessToken = CloudentityAuthJs._getAccessToken(this.options);
 
     if (queryString.code) {
-      if (global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
+      if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
         cleanUpPkceLocalStorageItems();
         return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
@@ -123,7 +155,7 @@ class CloudentityAuthJs {
           + '&code=' + encodeURIComponent(queryString.code)
           + '&client_id=' + encodeURIComponent(this.options.clientId)
           + '&redirect_uri=' + encodeURIComponent(this.options.redirectUri)
-          + '&code_verifier=' + encodeURIComponent(global.window.localStorage.getItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
+          + '&code_verifier=' + encodeURIComponent(getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
 
         return global.window.fetch(this.options.tokenUri, {
           method: 'POST',
@@ -267,11 +299,11 @@ class CloudentityAuthJs {
 
   static async _calcAuthorizationUrl (options, silentAuth, methodHint) {
     const state = generateRandomString();
-    global.window.localStorage.setItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, state);
+    setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, state);
 
     // Create and store a new PKCE code_verifier (the plaintext random secret)
     const codeVerifier = generateRandomString();
-    global.window.localStorage.setItem(`${options.tenantId}_${options.authorizationServerId}_pkce_code_verifier`, codeVerifier);
+    setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_code_verifier`, codeVerifier);
 
     // Hash and base64-urlencode the secret to use as the challenge
     const codeChallenge = await pkceChallengeFromVerifier(codeVerifier);
@@ -296,27 +328,27 @@ class CloudentityAuthJs {
   }
 
   static _getAccessToken (options) {
-    return global.window.localStorage.getItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
+    return getLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
   }
 
   static _setAccessToken (options, value) {
-    global.window.localStorage.setItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`, value);
+    setLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`, value);
   }
 
   static _setIdToken (options, value) {
-    global.window.localStorage.setItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`, value);
+    setLocalStorageItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`, value);
   }
 
   static _clearAuthTokens (options) {
-    global.window.localStorage.removeItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
-    global.window.localStorage.removeItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
+    removeLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
+    removeLocalStorageItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
   };
 
   static _parseQueryString (string) {
     if (string === '') {
       return {};
     }
-    let segments = string.split('&').map(s => s.split('='));
+    const segments = string.split('&').map(s => s.split('='));
     let queryString = {};
     segments.forEach(s => queryString[s[0]] = s[1]);
     return queryString;

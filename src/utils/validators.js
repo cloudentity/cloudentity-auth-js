@@ -4,6 +4,10 @@ const flattenArray = arr => [].concat(...arr);
 
 const isString = v => typeof v === 'string';
 
+const isNumber = v => typeof v === 'number' && isFinite(v);
+
+const isBoolean = v => typeof v === 'boolean';
+
 const isArray = v => Array.isArray(v);
 
 const toString = v => isString(v) ? v : '';
@@ -13,6 +17,12 @@ const toArray = v => isArray(v) ? v : [];
 const notEmptyArray = v => isArray(v) && v.length > 0;
 
 export const notEmptyString = v => isString(v) && v.trim().length > 0;
+
+export const optionalString = v => (isString(v) && v.trim().length > 0) || v === undefined;
+
+export const optionalNumber = v => isNumber(v) || v === undefined;
+
+export const optionalBoolean = v => isBoolean(v) || v === undefined;
 
 export const notEmptyStringArray = compose(v => (v.every(notEmptyString) && notEmptyArray(v)), toArray);
 
