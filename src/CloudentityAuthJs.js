@@ -50,12 +50,6 @@ const optionsSpec = {
   idTokenName: [
     {test: optionalString, message: '\'idTokenName\' [non-empty string] required if option value given'}
   ],
-  timeoutRatioFactor: [
-    {test: optionalNumber, message: '\'timeoutRatioFactor\' [number] required if option value given'}
-  ],
-  tokenExpirationRatioCheckInterval: [
-    {test: optionalNumber, message: '\'tokenExpirationRatioCheckInterval\' [number] required if option value given'}
-  ],
   implicit: [
     {test: optionalBoolean, message: '\'implicit\' [boolean] required if option value given'}
   ]
@@ -126,9 +120,10 @@ class CloudentityAuthJs {
    *
    * @returns {Promise}
    */
-  getAuth () {
+  getAuth (options) {
     const queryString = CloudentityAuthJs._parseQueryString(global.window.location.search.substring(1));
     const hashString = CloudentityAuthJs._parseQueryString(global.window.location.hash.substring(1));
+    const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
 
     const cleanUpPkceLocalStorageItems = () => {
       removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
@@ -154,7 +149,7 @@ class CloudentityAuthJs {
         const verificationData = 'grant_type=authorization_code'
           + '&code=' + encodeURIComponent(queryString.code)
           + '&client_id=' + encodeURIComponent(this.options.clientId)
-          + '&redirect_uri=' + encodeURIComponent(this.options.redirectUri)
+          + '&redirect_uri=' + encodeURIComponent(isSilentAuthFlow && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : this.options.redirectUri)
           + '&code_verifier=' + encodeURIComponent(getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
 
         return global.window.fetch(this.options.tokenUri, {
@@ -194,7 +189,14 @@ class CloudentityAuthJs {
   }
 
   /**
-   * Revokes access token (logout).
+   * Clears access and ID tokens (simple logout).
+   */
+  logout () {
+    return CloudentityAuthJs._clearAuthTokens(this.options);
+  }
+
+  /**
+   * Revokes access token, then clears access and ID tokens, regardless of API response (enhanced logout).
    *
    * @returns {Promise}
    */
@@ -220,7 +222,7 @@ class CloudentityAuthJs {
     * Initiates 'silent' authentication.
     * If user has opted to stay logged in on their device, this method issues a new access token if the current token is about to expire.
     */
-   async silentAuthentication () {
+   async silentAuthentication (timeoutRatioFactor) {
      const startSilentAuthentication = async (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
        const existingIframe = document.querySelector(`#${iframeId}`);
        existingIframe && document.body.removeChild(existingIframe);
@@ -254,8 +256,9 @@ class CloudentityAuthJs {
      const current = new Date().getTime() / 1000;
      const validForInSec = expiresAtTime - current;
      const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
+     const validateTimeoutRatioFactor = typeof timeoutRatioFactor === 'number' && timeoutRatioFactor > 0 && timeoutRatioFactor < 1;
 
-     if (ratio > (this.options.timeoutRatioFactor || 0.75) || !token) {
+     if (ratio > ((validateTimeoutRatioFactor && timeoutRatioFactor) || 0.75) || !token) {
        silentAuthenticationThrottled(this.options.tenantId, this.options.authorizationServerId, this.options.scopes, methodHint, 'silent-auth-iframe');
      }
    }
