@@ -189,6 +189,28 @@ class CloudentityAuthJs {
   }
 
   /**
+   * Gets access token from local storage. Access token returned if token is present and not expired.
+   *
+   * @returns {String} or {null}
+   */
+  getAccessToken () {
+    const accessToken = CloudentityAuthJs._getAccessToken(this.options);
+    if (!accessToken) {
+      return null;
+    }
+
+    let issuedAtTime = CloudentityAuthJs._getValueFromToken('iat', accessToken);
+    let expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', accessToken);
+    let timeToExpiration = CloudentityAuthJs._timeToExpiration(issuedAtTime, expiresAtTime);
+    if (timeToExpiration > 0) {
+      return accessToken;
+    } else {
+      CloudentityAuthJs._clearAuthTokens(this.options);
+      return null;
+    }
+  };
+
+  /**
    * Clears access and ID tokens (simple logout).
    */
   logout () {
