@@ -173,6 +173,18 @@ class CloudentityAuthJs {
           return Promise.reject(err);
         });
       }
+    } else if (queryString.error) {
+      const capitalizeFirstLetter = (string = '') => {
+        return string.charAt(0).toUpperCase() + string.slice(1);
+      };
+
+      return Promise.reject({
+        error: ERRORS.ERROR,
+        error_key: capitalizeFirstLetter((queryString.error || '').replace(/(\+|_)/g, ' ')),
+        error_cause: queryString.error_cause,
+        error_description: (queryString.error_description || '').replace(/\+/g, ' '),
+        error_hint: queryString.error_hint
+      });
     } else if (accessToken) {
       let issuedAtTime = CloudentityAuthJs._getValueFromToken('iat', accessToken);
       let expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', accessToken);
