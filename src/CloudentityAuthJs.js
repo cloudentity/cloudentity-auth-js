@@ -124,6 +124,7 @@ class CloudentityAuthJs {
     const queryString = CloudentityAuthJs._parseQueryString(global.window.location.search.substring(1));
     const hashString = CloudentityAuthJs._parseQueryString(global.window.location.hash.substring(1));
     const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
+    const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
 
     const cleanUpPkceLocalStorageItems = () => {
       removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
@@ -166,10 +167,16 @@ class CloudentityAuthJs {
           if (data.id_token) {
             CloudentityAuthJs._setIdToken(this.options, data.id_token);
           }
+          if (isSilentAuthFlow) {
+            postSilentAuthSuccessMessage(true);
+          }
           return data;
         })
         .catch(err => {
           cleanUpPkceLocalStorageItems();
+          if (isSilentAuthFlow) {
+            postSilentAuthSuccessMessage(false);
+          }
           return Promise.reject(err);
         });
       }
@@ -177,6 +184,10 @@ class CloudentityAuthJs {
       const capitalizeFirstLetter = (string = '') => {
         return string.charAt(0).toUpperCase() + string.slice(1);
       };
+
+      if (isSilentAuthFlow) {
+        postSilentAuthSuccessMessage(false);
+      }
 
       return Promise.reject({
         error: ERRORS.ERROR,
@@ -190,12 +201,21 @@ class CloudentityAuthJs {
       let expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', accessToken);
       let timeToExpiration = CloudentityAuthJs._timeToExpiration(issuedAtTime, expiresAtTime);
       if (timeToExpiration > 0) {
+        if (isSilentAuthFlow) {
+          postSilentAuthSuccessMessage(true);
+        }
         return Promise.resolve();
       } else {
         CloudentityAuthJs._clearAuthTokens(this.options);
+        if (isSilentAuthFlow) {
+          postSilentAuthSuccessMessage(false);
+        }
         return Promise.reject({error: ERRORS.EXPIRED});
       }
     } else {
+      if (isSilentAuthFlow) {
+        postSilentAuthSuccessMessage(false);
+      }
       return Promise.reject({error: ERRORS.UNAUTHORIZED});
     }
   }
