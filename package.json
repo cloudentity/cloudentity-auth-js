@@ -1,8 +1,8 @@
 {
-  "name": "cloudentity-web-auth",
-  "version": "0.10.0",
+  "name": "cloudentity-auth-js",
+  "version": "1.0.0-beta.0",
   "description": "",
-  "main": "dist/cloudentity-web-auth.js",
+  "main": "dist/cloudentity-auth-js.js",
   "scripts": {
     "clean": "rimraf dist",
     "webpack": "webpack",
@@ -20,17 +20,17 @@
     "registry": "https://artifactory.syntegrity.com/api/npm/npm-local"
   },
   "dependencies": {
-    "client-oauth2": "^4.1.0",
-    "ramda": "^0.25.0",
-    "superagent": "^3.8.2"
+    "babel-runtime": "6.26.0"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-core": "6.26.0",
     "babel-loader": "7.1.3",
+    "babel-plugin-transform-runtime": "6.23.0",
     "babel-preset-es2015": "6.24.1",
-    "rimraf": "2.6.2",
-    "webpack": "4.0.1",
-    "webpack-cli": "^2.0.9"
+    "babel-preset-stage-3": "6.24.1",
+    "rimraf": "3.0.2",
+    "webpack": "4.44.1",
+    "webpack-cli": "3.3.12"
   }
 }
