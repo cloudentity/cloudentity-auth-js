@@ -66,14 +66,14 @@ const removeLocalStorageItem = id => global.window.localStorage.removeItem(id);
 /**
  * Cloudentity OAuth2 flow client for Javascript SPAs
  */
-class CloudentityAuthJs {
+class CloudentityAuth {
   /**
-   * Creates CloudentityAuthJs client to handle OAuth2 flow
+   * Creates CloudentityAuth client to handle OAuth2 flow
    *
    * @param {Object} options
    */
   constructor (options) {
-    this.options = CloudentityAuthJs._parseOptions(options);
+    this.options = CloudentityAuth._parseOptions(options);
 
     const {clientId, redirectUri, authorizationUri, scopes} = this.options;
   }
@@ -84,9 +84,9 @@ class CloudentityAuthJs {
    */
   authorize () {
     if (this.options.implicit === true) {
-      global.window.location.href = CloudentityAuthJs._calcAuthorizationUrlImplicit(this.options);
+      global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(this.options);
     } else {
-      CloudentityAuthJs._calcAuthorizationUrl(this.options)
+      CloudentityAuth._calcAuthorizationUrl(this.options)
         .then(authorizationUri => {
           global.window.location.href = authorizationUri;
         });
@@ -100,7 +100,7 @@ class CloudentityAuthJs {
    * @returns {Promise}
    */
   userInfo () {
-    const token = CloudentityAuthJs._getAccessToken(this.options);
+    const token = CloudentityAuth._getAccessToken(this.options);
     if (!token) {
       return Promise.reject({error: ERRORS.UNAUTHORIZED});
     }
@@ -110,7 +110,7 @@ class CloudentityAuthJs {
         'Authorization': 'Bearer ' + token
       }
     })
-    .then(CloudentityAuthJs._handleApiResponse)
+    .then(CloudentityAuth._handleApiResponse)
     .then(data => data)
     .catch(err => Promise.reject(err));
   }
@@ -121,8 +121,8 @@ class CloudentityAuthJs {
    * @returns {Promise}
    */
   getAuth (options) {
-    const queryString = CloudentityAuthJs._parseQueryString(global.window.location.search.substring(1));
-    const hashString = CloudentityAuthJs._parseQueryString(global.window.location.hash.substring(1));
+    const queryString = CloudentityAuth._parseQueryString(global.window.location.search.substring(1));
+    const hashString = CloudentityAuth._parseQueryString(global.window.location.hash.substring(1));
     const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
     const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
 
@@ -132,15 +132,15 @@ class CloudentityAuthJs {
     };
 
     if (this.options.implicit === true && hashString.access_token) {
-      CloudentityAuthJs._setAccessToken(this.options, hashString.access_token);
+      CloudentityAuth._setAccessToken(this.options, hashString.access_token);
       if (hashString.id_token) {
-        CloudentityAuthJs._setIdToken(this.options, hashString.id_token);
+        CloudentityAuth._setIdToken(this.options, hashString.id_token);
       }
       global.window.history.replaceState('', global.window.document.title, global.window.location.pathname + global.window.location.search);
       return Promise.resolve(hashString);
     }
 
-    const accessToken = CloudentityAuthJs._getAccessToken(this.options);
+    const accessToken = CloudentityAuth._getAccessToken(this.options);
 
     if (queryString.code) {
       if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
@@ -160,12 +160,12 @@ class CloudentityAuthJs {
           },
           body: verificationData
         })
-        .then(CloudentityAuthJs._handleApiResponse)
+        .then(CloudentityAuth._handleApiResponse)
         .then(data => {
           cleanUpPkceLocalStorageItems();
-          CloudentityAuthJs._setAccessToken(this.options, data.access_token);
+          CloudentityAuth._setAccessToken(this.options, data.access_token);
           if (data.id_token) {
-            CloudentityAuthJs._setIdToken(this.options, data.id_token);
+            CloudentityAuth._setIdToken(this.options, data.id_token);
           }
           if (isSilentAuthFlow) {
             postSilentAuthSuccessMessage(true);
@@ -197,16 +197,16 @@ class CloudentityAuthJs {
         error_hint: queryString.error_hint
       });
     } else if (accessToken) {
-      let issuedAtTime = CloudentityAuthJs._getValueFromToken('iat', accessToken);
-      let expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', accessToken);
-      let timeToExpiration = CloudentityAuthJs._timeToExpiration(issuedAtTime, expiresAtTime);
+      let issuedAtTime = CloudentityAuth._getValueFromToken('iat', accessToken);
+      let expiresAtTime = CloudentityAuth._getValueFromToken('exp', accessToken);
+      let timeToExpiration = CloudentityAuth._timeToExpiration(issuedAtTime, expiresAtTime);
       if (timeToExpiration > 0) {
         if (isSilentAuthFlow) {
           postSilentAuthSuccessMessage(true);
         }
         return Promise.resolve();
       } else {
-        CloudentityAuthJs._clearAuthTokens(this.options);
+        CloudentityAuth._clearAuthTokens(this.options);
         if (isSilentAuthFlow) {
           postSilentAuthSuccessMessage(false);
         }
@@ -226,18 +226,18 @@ class CloudentityAuthJs {
    * @returns {String} or {null}
    */
   getAccessToken () {
-    const accessToken = CloudentityAuthJs._getAccessToken(this.options);
+    const accessToken = CloudentityAuth._getAccessToken(this.options);
     if (!accessToken) {
       return null;
     }
 
-    let issuedAtTime = CloudentityAuthJs._getValueFromToken('iat', accessToken);
-    let expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', accessToken);
-    let timeToExpiration = CloudentityAuthJs._timeToExpiration(issuedAtTime, expiresAtTime);
+    let issuedAtTime = CloudentityAuth._getValueFromToken('iat', accessToken);
+    let expiresAtTime = CloudentityAuth._getValueFromToken('exp', accessToken);
+    let timeToExpiration = CloudentityAuth._timeToExpiration(issuedAtTime, expiresAtTime);
     if (timeToExpiration > 0) {
       return accessToken;
     } else {
-      CloudentityAuthJs._clearAuthTokens(this.options);
+      CloudentityAuth._clearAuthTokens(this.options);
       return null;
     }
   };
@@ -246,7 +246,7 @@ class CloudentityAuthJs {
    * Clears access and ID tokens (simple logout).
    */
   logout () {
-    return CloudentityAuthJs._clearAuthTokens(this.options);
+    return CloudentityAuth._clearAuthTokens(this.options);
   }
 
   /**
@@ -255,7 +255,7 @@ class CloudentityAuthJs {
    * @returns {Promise}
    */
    revokeAuth () {
-     const token = CloudentityAuthJs._getAccessToken(this.options);
+     const token = CloudentityAuth._getAccessToken(this.options);
      return global.window.fetch(this.options.logoutUri, {
        method: 'POST',
        headers: {
@@ -265,9 +265,9 @@ class CloudentityAuthJs {
        },
        body: `token=${token}`
      })
-     .then(() => CloudentityAuthJs._clearAuthTokens(this.options))
+     .then(() => CloudentityAuth._clearAuthTokens(this.options))
      .catch(err => {
-       CloudentityAuthJs._clearAuthTokens(this.options);
+       CloudentityAuth._clearAuthTokens(this.options);
        return Promise.reject(err);
      });
    }
@@ -282,7 +282,7 @@ class CloudentityAuthJs {
        existingIframe && document.body.removeChild(existingIframe);
 
        const iframe = document.createElement('iframe');
-       const src = await CloudentityAuthJs._calcAuthorizationUrl(this.options, true, methodHint);
+       const src = await CloudentityAuth._calcAuthorizationUrl(this.options, true, methodHint);
        iframe.setAttribute('src', src);
        iframe.setAttribute('id', iframeId);
        iframe.style.display = 'none';
@@ -301,10 +301,10 @@ class CloudentityAuthJs {
 
      const silentAuthenticationThrottled = throttle(startSilentAuthentication, 10000);
 
-     const token = CloudentityAuthJs._getAccessToken(this.options);
-     const issuedAtTime = CloudentityAuthJs._getValueFromToken('iat', token);
-     const expiresAtTime = CloudentityAuthJs._getValueFromToken('exp', token);
-     const methodHint = CloudentityAuthJs._getValueFromToken('mth', token);
+     const token = CloudentityAuth._getAccessToken(this.options);
+     const issuedAtTime = CloudentityAuth._getValueFromToken('iat', token);
+     const expiresAtTime = CloudentityAuth._getValueFromToken('exp', token);
+     const methodHint = CloudentityAuth._getValueFromToken('mth', token);
 
      const lifetimeInSec = (expiresAtTime - issuedAtTime);
      const current = new Date().getTime() / 1000;
@@ -423,4 +423,4 @@ class CloudentityAuthJs {
   }
 }
 
-export default CloudentityAuthJs;
+export default CloudentityAuth;
