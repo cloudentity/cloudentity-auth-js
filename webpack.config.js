@@ -10,13 +10,13 @@ module.exports = env => {
   return {
     // devtool: 'source-map',
     entry: {
-      'cloudentity-auth-js': here('src/index.js'),
+      'cloudentity-auth': here('src/index.js'),
     },
     output: {
       filename: '[name].js',
       path: here('dist'),
       publicPath: '/',
-      library: 'CloudentityAuthJs',
+      library: 'CloudentityAuth',
       libraryTarget: 'umd',
       umdNamedDefine: true
     },

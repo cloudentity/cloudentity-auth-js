@@ -1,8 +1,8 @@
 {
-  "name": "cloudentity-auth-js",
+  "name": "@cloudentity/auth",
   "version": "1.0.0-beta.0",
   "description": "",
-  "main": "dist/cloudentity-auth-js.js",
+  "main": "dist/cloudentity-auth.js",
   "scripts": {
     "clean": "rimraf dist",
     "webpack": "webpack",
@@ -16,9 +16,6 @@
     "url": ""
   },
   "private": false,
-  "publishConfig": {
-    "registry": "https://artifactory.syntegrity.com/api/npm/npm-local"
-  },
   "dependencies": {
     "babel-runtime": "6.26.0"
   },

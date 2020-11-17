@@ -51,7 +51,7 @@ export const validateObject = (validators) => {
   return function (configObject) {
     const allResults = getAllResults(validators, configObject);
     if (allResults.length) {
-      let errorMessage = 'CloudentityAuthJs: ';
+      let errorMessage = 'CloudentityAuth: ';
       allResults.forEach((r, i) => i === allResults.length - 1 ? errorMessage += r.message : errorMessage += `${r.message}, `);
       return errorMessage;
     } else {
