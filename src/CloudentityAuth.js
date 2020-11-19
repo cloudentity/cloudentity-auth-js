@@ -85,11 +85,11 @@ class CloudentityAuth {
    * Implicit flow is supported, but not recommended in most circumstances due to potential security issues.
    */
   authorize (dynamicOptions) {
+    const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
+    const finalOptions = dynamicScopes ? Object.assign({}, this.options, {scopes: dynamicOptions.scopes}) : this.options;
     if (this.options.implicit === true) {
-      global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(this.options);
+      global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(finalOptions);
     } else {
-      const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
-      const finalOptions = dynamicScopes ? Object.assign({}, this.options, {scopes: dynamicOptions.scopes}) : this.options;
       CloudentityAuth._calcAuthorizationUrl(finalOptions)
         .then(authorizationUri => {
           global.window.location.href = authorizationUri;
