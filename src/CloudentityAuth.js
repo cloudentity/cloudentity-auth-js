@@ -63,8 +63,6 @@ const getLocalStorageItem = id => global.window.localStorage.getItem(id);
 
 const removeLocalStorageItem = id => global.window.localStorage.removeItem(id);
 
-
-
 /**
  * Cloudentity OAuth2 flow client for Javascript SPAs
  */
