@@ -1,4 +1,4 @@
-import {stringOrEmptyArray, notEmptyString, optionalString, optionalNumber, optionalBoolean, validateObject} from './utils/validators';
+import {notEmptyStringArray, stringOrEmptyArray, notEmptyString, optionalString, optionalNumber, optionalBoolean, validateObject} from './utils/validators';
 import {generateRandomString, pkceChallengeFromVerifier} from './utils/pkce.utils';
 import throttle from './utils/throttle';
 
@@ -82,11 +82,13 @@ class CloudentityAuth {
    * Initiates OAuth2 PKCE flow (redirecting to Cloudentity authorization page)
    * Implicit flow is supported, but not recommended in most circumstances due to potential security issues.
    */
-  authorize () {
+  authorize (dynamicOptions) {
+    const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
+    const finalOptions = dynamicScopes ? {...this.options, ...{scopes: dynamicOptions.scopes}} : this.options;
     if (this.options.implicit === true) {
-      global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(this.options);
+      global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(finalOptions);
     } else {
-      CloudentityAuth._calcAuthorizationUrl(this.options)
+      CloudentityAuth._calcAuthorizationUrl(finalOptions)
         .then(authorizationUri => {
           global.window.location.href = authorizationUri;
         });

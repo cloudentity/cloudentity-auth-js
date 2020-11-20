@@ -64,14 +64,25 @@ import CloudentityAuth from '@cloudentity/auth';
 
   ```javascript
   cloudentity.authorize(); // redirects to authorization service
-  ```  
+  ```
+
+  If passing dynamic scope values during authorization flow:
+
+  ```javascript
+  // e.g. fetching scopes dynamically from an API response
+  fetchSomeDynamicData().then(response => {
+    // e.g. value of response.scopes is ['foo', 'bar']
+    cloudentity.authorize({scopes: response.scopes});
+    // redirects to authorization service with dynamic scopes overriding initial config
+  });
+  ```
 
 4. For simple logout:
 
   ```javascript
   cloudentity.logout(); // tokens are cleared from browser's local storage, but access token is not revoked
   // (synchronous, no return value)
-  ```  
+  ```
 
 5. For logout using `revokeAuth` method (make sure that the `revoke_tokens` scope is present):
 
