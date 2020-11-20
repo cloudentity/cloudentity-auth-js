@@ -134,7 +134,7 @@ import CloudentityAuth from '@cloudentity/auth';
 ### Legacy browser support
 
 To use with SPAs that must support Microsoft IE11 or Edge Legacy:
-- You must polyfill `Promise`, `Object.assign`, `TextEncoder`, and `fetch` in your client app code.
-  - `Promise` and `Object.assign` are commonly polyfilled using catch-all polyfill libraries such as `@babel/polyfill`.
+- You must polyfill `Promise`, `TextEncoder`, and `fetch` in your client app code.
+  - `Promise` is commonly polyfilled using catch-all polyfill libraries such as `@babel/polyfill`.
   - `TextEncoder` can be polyfilled with a library such as `fast-text-encoding`.
   - `fetch` can be polyfilled with a library such as `whatwg-fetch`.

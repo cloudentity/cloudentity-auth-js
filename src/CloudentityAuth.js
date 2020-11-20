@@ -86,7 +86,7 @@ class CloudentityAuth {
    */
   authorize (dynamicOptions) {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
-    const finalOptions = dynamicScopes ? Object.assign({}, this.options, {scopes: dynamicOptions.scopes}) : this.options;
+    const finalOptions = dynamicScopes ? {...this.options, ...{scopes: dynamicOptions.scopes}} : this.options;
     if (this.options.implicit === true) {
       global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(finalOptions);
     } else {
