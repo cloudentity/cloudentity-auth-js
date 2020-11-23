@@ -28,7 +28,9 @@ import CloudentityAuth from '@cloudentity/auth';
 
   ```javascript
   var cloudentity = new CloudentityAuth({
-      domain: 'your-domain', // e.g. 'example.demo.cloudentity.com'
+      domain: 'your-domain', // e.g. 'example.demo.cloudentity.com.' Recommended; always generates URLs with 'https' protocol.
+      // baseUrl: optional alternative to 'domain.' Protocol required, e.g. 'https://example.demo.cloudentity.com.'
+      // In situations where protocol may dynamically resolve to 'http' rather than 'https' (for example in dev mode), use 'baseUrl' rather than 'domain'.
       tenantId: 'your-tenant-id',
       authorizationServerId: 'your-authorization-server-id',
       clientId: 'your-client-id',
@@ -40,6 +42,14 @@ import CloudentityAuth from '@cloudentity/auth';
       idTokenName: 'your_org_access_token', // optional; defaults to '{tenantId}_{authorizationServerId}_id_token'
   });
   ```
+
+  In most cases, either `domain` **or** `baseUrl` can be used to generate all required URLs. However, it is possible to supply the full URL in the config for each use case:
+  - Authorization: `authorizationUri`
+  - Token: `tokenUri`
+  - User Info: `userInfoUri`
+  - Logout via Revoke Token: `logoutUri`
+
+  Be aware that if using these custom URL values, neither `domain` nor `baseUrl` values should be supplied in the config; otherwise, they will take priority (`domain` takes highest priority in such cases).
 
   > Note: By default, PKCE authorization flow is used. Implicit flow can be used by including `{implicit: true}` in the configuration object passed into CloudentityAuth (this is not recommended).
 
