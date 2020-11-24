@@ -23,6 +23,9 @@ const optionsSpec = {
   domain: [
     {test: optionalString, message: '\'domain\' [non-empty string] required if option value given'}
   ],
+  baseUrl: [
+    {test: optionalString, message: '\'baseUrl\' [non-empty string] required if option value given'}
+  ],
   authorizationUri: [
     {test: optionalString, message: '\'authorizationUri\' [non-empty string] required if option value given'}
   ],
@@ -326,17 +329,20 @@ class CloudentityAuth {
       throw new Error(error);
     }
 
-    options.authorizationUri = options.domain
-      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/authorize`
+    const useDefaultUriFormat = options.domain || options.baseUrl;
+    const baseUrl = options.domain ? `https://${options.domain}` : options.baseUrl;
+
+    options.authorizationUri = useDefaultUriFormat
+      ? `${baseUrl}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/authorize`
       : options.authorizationUri;
-    options.tokenUri = options.domain
-      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/token`
+    options.tokenUri = useDefaultUriFormat
+      ? `${baseUrl}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/token`
       : options.tokenUri;
-    options.userInfoUri = options.domain
-      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}userinfo`
+    options.userInfoUri = useDefaultUriFormat
+      ? `${baseUrl}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}userinfo`
       : options.userInfoUri;
-    options.logoutUri = options.domain
-      ? `https://${options.domain}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/revoke`
+    options.logoutUri = useDefaultUriFormat
+      ? `${baseUrl}/${options.tenantId ? options.tenantId + '/' : ''}${options.authorizationServerId ? options.authorizationServerId + '/' : ''}oauth2/revoke`
       : options.logoutUri;
 
     return options;
