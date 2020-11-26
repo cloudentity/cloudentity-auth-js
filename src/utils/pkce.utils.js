@@ -1,5 +1,20 @@
 const crypto = window.crypto || window.msCrypto; // IE11 uses 'msCrypto'
 
+function encodeString (string) {
+  if (window.TextEncoder) {
+    const encoder = new TextEncoder();
+    return encoder.encode(string);
+  } else {
+    // IE11 or Edge Legacy browsers
+    const utf8 = unescape(encodeURIComponent(string));
+    let encodedString = new Uint8Array(utf8.length);
+    for (var i = 0; i < utf8.length; i++) {
+      encodedString[i] = utf8.charCodeAt(i);
+    }
+    return encodedString;
+  }
+}
+
 // https://github.com/aaronpk/pkce-vanilla-js
 
 // Generate a secure random string using the browser crypto functions
@@ -11,9 +26,8 @@ export const generateRandomString = () => {
 
 // Calculate the SHA256 hash of the input text.
 // Returns a promise that resolves to an ArrayBuffer
-async function sha256 (plain) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(plain);
+function sha256 (plain) {
+  const data = encodeString(plain);
   if (window.CryptoOperation) {
     // in IE11, window.msCrypto.subtle.digest returns CryptoOperation instead of Promise
     return new Promise((resolve, reject) => {
@@ -41,7 +55,6 @@ function base64urlencode (str) {
 }
 
 // Return the base64-urlencoded sha256 hash for the PKCE challenge
-export const pkceChallengeFromVerifier = async (v) => {
-  const hashed = await sha256(v);
-  return base64urlencode(hashed);
+export const pkceChallengeFromVerifier = (v) => {
+  return sha256(v).then(hashed => base64urlencode(hashed));
 };
