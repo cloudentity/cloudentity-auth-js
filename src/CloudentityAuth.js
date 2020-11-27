@@ -281,27 +281,29 @@ class CloudentityAuth {
     * Initiates 'silent' authentication.
     * If user has opted to stay logged in on their device, this method issues a new access token if the current token is about to expire.
     */
-   async silentAuthentication (timeoutRatioFactor) {
-     const startSilentAuthentication = async (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
+   silentAuthentication (timeoutRatioFactor) {
+     const startSilentAuthentication = (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
        const existingIframe = document.querySelector(`#${iframeId}`);
        existingIframe && document.body.removeChild(existingIframe);
 
        const iframe = document.createElement('iframe');
-       const src = await CloudentityAuth._calcAuthorizationUrl(this.options, true, methodHint);
-       iframe.setAttribute('src', src);
-       iframe.setAttribute('id', iframeId);
-       iframe.style.display = 'none';
-       const listener = e => {
-         if (e.data === (SILENT_AUTH_SUCCESS_MESSAGE || SILENT_AUTH_ERROR_MESSAGE)) {
-           const iframeToRemove = document.querySelector(`#${iframeId}`);
-           iframeToRemove && document.body.removeChild(iframeToRemove);
-           window.removeEventListener('message', listener);
-         }
-       };
+       CloudentityAuth._calcAuthorizationUrl(this.options, true, methodHint)
+       .then(authorizationUri => {
+         iframe.setAttribute('src', authorizationUri);
+         iframe.setAttribute('id', iframeId);
+         iframe.style.display = 'none';
+         const listener = e => {
+           if (e.data === (SILENT_AUTH_SUCCESS_MESSAGE || SILENT_AUTH_ERROR_MESSAGE)) {
+             const iframeToRemove = document.querySelector(`#${iframeId}`);
+             iframeToRemove && document.body.removeChild(iframeToRemove);
+             window.removeEventListener('message', listener);
+           }
+         };
 
-       window.addEventListener('message', listener);
+         window.addEventListener('message', listener);
 
-       document.body.appendChild(iframe);
+         document.body.appendChild(iframe);
+       });
      };
 
      const silentAuthenticationThrottled = throttle(startSilentAuthentication, 10000);
@@ -362,7 +364,7 @@ class CloudentityAuth {
       });
   }
 
-  static async _calcAuthorizationUrl (options, silentAuth, methodHint) {
+  static _calcAuthorizationUrl (options, silentAuth, methodHint) {
     const state = generateRandomString();
     setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, state);
 
@@ -371,17 +373,17 @@ class CloudentityAuth {
     setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_code_verifier`, codeVerifier);
 
     // Hash and base64-urlencode the secret to use as the challenge
-    const codeChallenge = await pkceChallengeFromVerifier(codeVerifier);
-
-    return options.authorizationUri
-      + '?response_type=code'
-      + '&client_id=' + encodeURIComponent(options.clientId)
-      + '&state=' + encodeURIComponent(state)
-      + '&scope=' + encodeURIComponent(options.scopes.join(' '))
-      + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
-      + '&code_challenge=' + encodeURIComponent(codeChallenge)
-      + '&code_challenge_method=S256'
-      + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
+    return pkceChallengeFromVerifier(codeVerifier).then(challengeRes => {
+      return options.authorizationUri
+        + '?response_type=code'
+        + '&client_id=' + encodeURIComponent(options.clientId)
+        + '&state=' + encodeURIComponent(state)
+        + '&scope=' + encodeURIComponent(options.scopes.join(' '))
+        + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
+        + '&code_challenge=' + encodeURIComponent(challengeRes)
+        + '&code_challenge_method=S256'
+        + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
+    });
   }
 
   static _calcAuthorizationUrlImplicit (options) {
