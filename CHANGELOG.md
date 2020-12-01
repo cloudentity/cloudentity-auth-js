@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.10.0] - 2019-04-12
 ### Added
 - initial client (basic OAuth implicit flow support) - WIP
 - basic options validation
@@ -10,4 +10,4 @@
 ## [Project init]
 ### Added
 - initial project files
-- EULA 
+- EULA
