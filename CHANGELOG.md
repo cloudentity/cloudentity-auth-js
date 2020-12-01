@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.10.0] - 2019-04-12
 ### Added
 - Refactor to use Cloudentity ACP and PKCE as default authorization method
 
