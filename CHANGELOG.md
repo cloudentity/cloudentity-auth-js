@@ -1,8 +1,8 @@
-## [0.10.0] - 2019-04-12
-### Added
+## [1.0.0] - 2020-12-02
+### Changed
 - Refactor to use Cloudentity ACP and PKCE as default authorization method
 
-## [Unreleased]
+## [0.10.0] - 2019-04-12
 ### Added
 - initial client (basic OAuth implicit flow support) - WIP
 - basic options validation
