@@ -10,13 +10,13 @@ module.exports = env => {
   return {
     // devtool: 'source-map',
     entry: {
-      'cloudentity-web-auth': here('src/index.js'),
+      'cloudentity-auth': here('src/index.js'),
     },
     output: {
       filename: '[name].js',
       path: here('dist'),
       publicPath: '/',
-      library: 'CloudentityWebAuth',
+      library: 'CloudentityAuth',
       libraryTarget: 'umd',
       umdNamedDefine: true
     },
@@ -27,11 +27,12 @@ module.exports = env => {
       rules: [
         {
           test: /\.js$/,
+          exclude: /node_modules/,
           use: [
             {
               loader: 'babel-loader',
               options: {
-                presets: ['es2015'],
+                presets: ['es2015', 'stage-3']
               }
             }
           ],
