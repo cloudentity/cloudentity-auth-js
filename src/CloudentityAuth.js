@@ -131,11 +131,6 @@ class CloudentityAuth {
     const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
     const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
 
-    const cleanUpPkceLocalStorageItems = () => {
-      removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
-      removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
-    };
-
     if (this.options.implicit === true && hashString.access_token) {
       CloudentityAuth._setAccessToken(this.options, hashString.access_token);
       if (hashString.id_token) {
@@ -149,7 +144,7 @@ class CloudentityAuth {
 
     if (queryString.code) {
       if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
-        cleanUpPkceLocalStorageItems();
+        this.cleanUpPkceLocalStorageItems();
         return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
         const verificationData = 'grant_type=authorization_code'
@@ -167,7 +162,7 @@ class CloudentityAuth {
         })
         .then(CloudentityAuth._handleApiResponse)
         .then(data => {
-          cleanUpPkceLocalStorageItems();
+          this.cleanUpPkceLocalStorageItems();
           CloudentityAuth._setAccessToken(this.options, data.access_token);
           if (data.id_token) {
             CloudentityAuth._setIdToken(this.options, data.id_token);
@@ -178,7 +173,7 @@ class CloudentityAuth {
           return data;
         })
         .catch(err => {
-          cleanUpPkceLocalStorageItems();
+          this.cleanUpPkceLocalStorageItems();
           if (isSilentAuthFlow) {
             postSilentAuthSuccessMessage(false);
           }
@@ -189,6 +184,8 @@ class CloudentityAuth {
       const capitalizeFirstLetter = (string = '') => {
         return string.charAt(0).toUpperCase() + string.slice(1);
       };
+
+      this.cleanUpPkceLocalStorageItems();
 
       if (isSilentAuthFlow) {
         postSilentAuthSuccessMessage(false);
@@ -300,7 +297,17 @@ class CloudentityAuth {
            }
          };
 
+         const checkInvalidRequestListener = e => {
+           iframe.removeEventListener('load', checkInvalidRequestListener);
+           const errorTitle = iframe.contentWindow.document.querySelector('#error-title');
+           if (errorTitle && errorTitle.innerText === 'Invalid Request') {
+             this.cleanUpPkceLocalStorageItems();
+             global.window.parent.postMessage(SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
+           }
+         }
+
          window.addEventListener('message', listener);
+         iframe.addEventListener('load', checkInvalidRequestListener, false)
 
          document.body.appendChild(iframe);
        });
@@ -409,6 +416,11 @@ class CloudentityAuth {
   static _clearAuthTokens (options) {
     removeLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`);
     removeLocalStorageItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
+  };
+
+  cleanUpPkceLocalStorageItems () {
+    removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
+    removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
   };
 
   static _parseQueryString (string) {
