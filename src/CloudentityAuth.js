@@ -88,6 +88,12 @@ class CloudentityAuth {
   authorize (dynamicOptions) {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
     const finalOptions = dynamicScopes ? {...this.options, ...{scopes: dynamicOptions.scopes}} : this.options;
+
+    const prompt = dynamicOptions && dynamicOptions.prompt;
+    if (prompt) {
+      finalOptions.prompt = prompt;
+    }
+
     if (this.options.implicit === true) {
       global.window.location.href = CloudentityAuth._calcAuthorizationUrlImplicit(finalOptions);
     } else {
@@ -389,6 +395,7 @@ class CloudentityAuth {
         + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
         + '&code_challenge=' + encodeURIComponent(challengeRes)
         + '&code_challenge_method=S256'
+        + `${options.prompt ? `&prompt=${options.prompt}` : ""}`
         + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
     });
   }

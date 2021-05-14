@@ -87,6 +87,12 @@ import CloudentityAuth from '@cloudentity/auth';
   });
   ```
 
+  It's possible to pass `prompt` param to authorization request:
+
+  ```javascript
+    cloudentity.authorize({prompt: "login"});
+  ```
+
 4. For simple logout:
 
   ```javascript
