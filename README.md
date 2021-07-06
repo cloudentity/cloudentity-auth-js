@@ -147,6 +147,17 @@ import CloudentityAuth from '@cloudentity/auth';
   // (synchronous, returns String if token is present and not expired; otherwise returns null)
   ```
 
+  - In some cases, the client app developer may want to set multiple access tokens for the same user based on custom logic, e.g. to set action-specific access tokens associated with specific scopes, in addition to the access token initially set during authentication. To do this, disable the library setting access tokens in the auth config:
+
+  ```javascript
+  var cloudentity = new CloudentityAuth({
+      // other settings...
+      //
+      letClientSetAccessToken: true // with this flag enabled, client app must handle setting all access tokens based on auth response
+      accessTokenName: 'your_org_access_token', // it is still possible to specify an access token key value that will always be deleted on logout
+  });
+  ```
+
 ### Legacy browser support
 
 To use with SPAs that must support Microsoft IE11 or Edge Legacy:

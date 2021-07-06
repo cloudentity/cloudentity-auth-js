@@ -47,6 +47,9 @@ const optionsSpec = {
   scopes: [
     {test: stringOrEmptyArray, message: '\'scopes\' [array of strings or empty array] option is required'}
   ],
+  letClientSetAccessToken: [
+    {test: optionalBoolean, message: '\'letClientSetAccessToken\' [boolean] required if option value given'}
+  ],
   accessTokenName: [
     {test: optionalString, message: '\'accessTokenName\' [non-empty string] required if option value given'}
   ],
@@ -169,7 +172,9 @@ class CloudentityAuth {
         .then(CloudentityAuth._handleApiResponse)
         .then(data => {
           this.cleanUpPkceLocalStorageItems();
-          CloudentityAuth._setAccessToken(this.options, data.access_token);
+          if (!this.options.letClientSetAccessToken) {
+            CloudentityAuth._setAccessToken(this.options, data.access_token);
+          }
           if (data.id_token) {
             CloudentityAuth._setIdToken(this.options, data.id_token);
           }
