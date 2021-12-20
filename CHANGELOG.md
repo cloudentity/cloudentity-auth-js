@@ -2,6 +2,9 @@
 ### Added
 - Flag to disable library automatically setting access token, allowing client app more fine-grained control
 
+### Fixed
+- Silent authentication doesn't give up after first fail
+
 ## [1.0.0] - 2020-12-02
 ### Changed
 - Refactor to use Cloudentity ACP and PKCE as default authorization method

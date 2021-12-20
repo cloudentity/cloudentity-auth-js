@@ -1,12 +1,14 @@
-import {notEmptyStringArray, stringOrEmptyArray, notEmptyString, optionalString, optionalNumber, optionalBoolean, validateObject} from './utils/validators';
 import {generateRandomString, pkceChallengeFromVerifier} from './utils/pkce.utils';
-import throttle from './utils/throttle';
+import {notEmptyString, notEmptyStringArray, optionalBoolean, optionalString, stringOrEmptyArray, validateObject} from './utils/validators';
 
 const ERRORS = {
   UNAUTHORIZED: 'Unauthorized',
   EXPIRED: 'Session expired',
   ERROR: 'Error'
 };
+
+const DEFAULT_SILENT_AUTH_TIMEOUT_IN_SECONDS = 45;
+const DEFAULT_CHECK_INTERVAL_IN_SECONDS = 60;
 const SILENT_AUTH_SUCCESS_MESSAGE = 'silentAuthSuccess';
 const SILENT_AUTH_ERROR_MESSAGE = 'silentAuthFailure';
 
@@ -105,7 +107,7 @@ class CloudentityAuth {
           global.window.location.href = authorizationUri;
         });
     }
-   }
+  }
 
   /**
    * Gets user profile information
@@ -124,9 +126,9 @@ class CloudentityAuth {
         'Authorization': 'Bearer ' + token
       }
     })
-    .then(CloudentityAuth._handleApiResponse)
-    .then(data => data)
-    .catch(err => Promise.reject(err));
+      .then(CloudentityAuth._handleApiResponse)
+      .then(data => data)
+      .catch(err => Promise.reject(err));
   }
 
   /**
@@ -169,27 +171,27 @@ class CloudentityAuth {
           },
           body: verificationData
         })
-        .then(CloudentityAuth._handleApiResponse)
-        .then(data => {
-          this.cleanUpPkceLocalStorageItems();
-          if (!this.options.letClientSetAccessToken) {
-            CloudentityAuth._setAccessToken(this.options, data.access_token);
-          }
-          if (data.id_token) {
-            CloudentityAuth._setIdToken(this.options, data.id_token);
-          }
-          if (isSilentAuthFlow) {
-            postSilentAuthSuccessMessage(true);
-          }
-          return data;
-        })
-        .catch(err => {
-          this.cleanUpPkceLocalStorageItems();
-          if (isSilentAuthFlow) {
-            postSilentAuthSuccessMessage(false);
-          }
-          return Promise.reject(err);
-        });
+          .then(CloudentityAuth._handleApiResponse)
+          .then(data => {
+            this.cleanUpPkceLocalStorageItems();
+            if (!this.options.letClientSetAccessToken) {
+              CloudentityAuth._setAccessToken(this.options, data.access_token);
+            }
+            if (data.id_token) {
+              CloudentityAuth._setIdToken(this.options, data.id_token);
+            }
+            if (isSilentAuthFlow) {
+              postSilentAuthSuccessMessage(true);
+            }
+            return data;
+          })
+          .catch(err => {
+            this.cleanUpPkceLocalStorageItems();
+            if (isSilentAuthFlow) {
+              postSilentAuthSuccessMessage(false);
+            }
+            return Promise.reject(err);
+          });
       }
     } else if (queryString.error) {
       const capitalizeFirstLetter = (string = '') => {
@@ -267,80 +269,84 @@ class CloudentityAuth {
    *
    * @returns {Promise}
    */
-   revokeAuth () {
-     const token = CloudentityAuth._getAccessToken(this.options);
-     return global.window.fetch(this.options.logoutUri, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/x-www-form-urlencoded',
-         'Accept': 'application/json',
-         'Authorization': 'Bearer ' + token
-       },
-       body: `token=${token}`
-     })
-     .then(() => CloudentityAuth._clearAuthTokens(this.options))
-     .catch(err => {
-       CloudentityAuth._clearAuthTokens(this.options);
-       return Promise.reject(err);
-     });
-   }
+  revokeAuth () {
+    const token = CloudentityAuth._getAccessToken(this.options);
+    return global.window.fetch(this.options.logoutUri, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: `token=${token}`
+    })
+      .then(() => CloudentityAuth._clearAuthTokens(this.options))
+      .catch(err => {
+        CloudentityAuth._clearAuthTokens(this.options);
+        return Promise.reject(err);
+      });
+  }
 
-   /**
-    * Initiates 'silent' authentication.
-    * If user has opted to stay logged in on their device, this method issues a new access token if the current token is about to expire.
-    */
-   silentAuthentication (timeoutRatioFactor) {
-     const startSilentAuthentication = (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
-       const existingIframe = document.querySelector(`#${iframeId}`);
-       existingIframe && document.body.removeChild(existingIframe);
+  /**
+   * Initiates 'silent' authentication.
+   * If user has opted to stay logged in on their device, this method issues a new access token if the current token is about to expire.
+   */
+  silentAuthentication (timeoutRatioFactor) {
+    const checkInterval = setInterval(() => {
+      const token = CloudentityAuth._getAccessToken(this.options);
+      const issuedAtTime = CloudentityAuth._getValueFromToken('iat', token);
+      const expiresAtTime = CloudentityAuth._getValueFromToken('exp', token);
+      const methodHint = CloudentityAuth._getValueFromToken('mth', token);
 
-       const iframe = document.createElement('iframe');
-       CloudentityAuth._calcAuthorizationUrl(this.options, true, methodHint)
-       .then(authorizationUri => {
-         iframe.setAttribute('src', authorizationUri);
-         iframe.setAttribute('id', iframeId);
-         iframe.style.display = 'none';
-         const listener = e => {
-           if (e.data === (SILENT_AUTH_SUCCESS_MESSAGE || SILENT_AUTH_ERROR_MESSAGE)) {
-             const iframeToRemove = document.querySelector(`#${iframeId}`);
-             iframeToRemove && document.body.removeChild(iframeToRemove);
-             window.removeEventListener('message', listener);
-           }
-         };
+      const lifetimeInSec = (expiresAtTime - issuedAtTime);
+      const current = new Date().getTime() / 1000;
+      const validForInSec = expiresAtTime - current;
+      const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
+      const validateTimeoutRatioFactor = typeof timeoutRatioFactor === 'number' && timeoutRatioFactor > 0 && timeoutRatioFactor < 1;
 
-         const checkInvalidRequestListener = e => {
-           iframe.removeEventListener('load', checkInvalidRequestListener);
-           const errorTitle = iframe.contentWindow.document.querySelector('#error-title');
-           if (errorTitle && errorTitle.innerText === 'Invalid Request') {
-             this.cleanUpPkceLocalStorageItems();
-             global.window.parent.postMessage(SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
-           }
-         }
+      if (ratio > ((validateTimeoutRatioFactor && timeoutRatioFactor) || 0.75) || !token) {
+        startSilentAuthentication(this.options.tenantId, this.options.authorizationServerId, this.options.scopes, methodHint, 'silent-auth-iframe');
+      }
+    }, DEFAULT_CHECK_INTERVAL_IN_SECONDS * 1000);
 
-         window.addEventListener('message', listener);
-         iframe.addEventListener('load', checkInvalidRequestListener, false)
+    const startSilentAuthentication = (tenantId, authorizationServerId, scopes, methodHint, iframeId) => {
+      const existingIframe = document.querySelector(`#${iframeId}`);
+      existingIframe && document.body.removeChild(existingIframe);
 
-         document.body.appendChild(iframe);
-       });
-     };
+      const iframe = document.createElement('iframe');
 
-     const silentAuthenticationThrottled = throttle(startSilentAuthentication, 10000);
+      CloudentityAuth._calcAuthorizationUrl(this.options, true, methodHint)
+        .then(authorizationUri => {
+          iframe.setAttribute('id', iframeId);
+          iframe.setAttribute('width', '0');
+          iframe.setAttribute('height', '0');
+          iframe.style.display = 'none';
 
-     const token = CloudentityAuth._getAccessToken(this.options);
-     const issuedAtTime = CloudentityAuth._getValueFromToken('iat', token);
-     const expiresAtTime = CloudentityAuth._getValueFromToken('exp', token);
-     const methodHint = CloudentityAuth._getValueFromToken('mth', token);
+          const timeoutSetTimeoutId = setTimeout(() => {
+            clearInterval(checkInterval)
+            const iframeToRemove = document.querySelector(`#${iframeId}`);
+            iframeToRemove && document.body.removeChild(iframeToRemove);
+            window.removeEventListener('message', listener);
+          },  DEFAULT_SILENT_AUTH_TIMEOUT_IN_SECONDS * 1000);
 
-     const lifetimeInSec = (expiresAtTime - issuedAtTime);
-     const current = new Date().getTime() / 1000;
-     const validForInSec = expiresAtTime - current;
-     const ratio = (lifetimeInSec - validForInSec) / lifetimeInSec;
-     const validateTimeoutRatioFactor = typeof timeoutRatioFactor === 'number' && timeoutRatioFactor > 0 && timeoutRatioFactor < 1;
+          const listener = function (e) {
+            if (e.origin !== window.location.origin || iframe.contentWindow !== e.source) {
+              return;
+            }
+            if (e.data === (SILENT_AUTH_SUCCESS_MESSAGE || SILENT_AUTH_ERROR_MESSAGE)) {
+              const iframeToRemove = document.querySelector(`#${iframeId}`);
+              iframeToRemove && document.body.removeChild(iframeToRemove);
+              clearTimeout(timeoutSetTimeoutId);
+              window.removeEventListener('message', listener);
+            }
+          };
 
-     if (ratio > ((validateTimeoutRatioFactor && timeoutRatioFactor) || 0.75) || !token) {
-       silentAuthenticationThrottled(this.options.tenantId, this.options.authorizationServerId, this.options.scopes, methodHint, 'silent-auth-iframe');
-     }
-   }
+          window.addEventListener('message', listener);
+          document.body.appendChild(iframe);
+          iframe.setAttribute('src', authorizationUri);
+        });
+    };
+  }
 
   static _parseOptions (options) {
     const error = validateOptions(options);
