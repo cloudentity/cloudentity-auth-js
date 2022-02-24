@@ -212,20 +212,27 @@ class CloudentityAuth {
         error_hint: queryString.error_hint
       });
     } else if (accessToken) {
-      let issuedAtTime = CloudentityAuth._getValueFromToken('iat', accessToken);
-      let expiresAtTime = CloudentityAuth._getValueFromToken('exp', accessToken);
-      let timeToExpiration = CloudentityAuth._timeToExpiration(issuedAtTime, expiresAtTime);
-      if (timeToExpiration > 0) {
+      if (CloudentityAuth._isJWT(accessToken)) {
+        let issuedAtTime = CloudentityAuth._getValueFromToken('iat', accessToken);
+        let expiresAtTime = CloudentityAuth._getValueFromToken('exp', accessToken);
+        let timeToExpiration = CloudentityAuth._timeToExpiration(issuedAtTime, expiresAtTime);
+        if (timeToExpiration > 0) {
+          if (isSilentAuthFlow) {
+            postSilentAuthSuccessMessage(true);
+          }
+          return Promise.resolve();
+        } else {
+          CloudentityAuth._clearAuthTokens(this.options);
+          if (isSilentAuthFlow) {
+            postSilentAuthSuccessMessage(false);
+          }
+          return Promise.reject({error: ERRORS.EXPIRED});
+        }
+      } else {
         if (isSilentAuthFlow) {
           postSilentAuthSuccessMessage(true);
         }
         return Promise.resolve();
-      } else {
-        CloudentityAuth._clearAuthTokens(this.options);
-        if (isSilentAuthFlow) {
-          postSilentAuthSuccessMessage(false);
-        }
-        return Promise.reject({error: ERRORS.EXPIRED});
       }
     } else {
       if (isSilentAuthFlow) {
@@ -246,15 +253,7 @@ class CloudentityAuth {
       return null;
     }
 
-    let issuedAtTime = CloudentityAuth._getValueFromToken('iat', accessToken);
-    let expiresAtTime = CloudentityAuth._getValueFromToken('exp', accessToken);
-    let timeToExpiration = CloudentityAuth._timeToExpiration(issuedAtTime, expiresAtTime);
-    if (timeToExpiration > 0) {
-      return accessToken;
-    } else {
-      CloudentityAuth._clearAuthTokens(this.options);
-      return null;
-    }
+    return accessToken;
   };
 
   /**
@@ -294,6 +293,9 @@ class CloudentityAuth {
   silentAuthentication (timeoutRatioFactor) {
     const checkInterval = setInterval(() => {
       const token = CloudentityAuth._getAccessToken(this.options);
+      if (!CloudentityAuth._isJWT(token)) {
+        return;
+      }
       const issuedAtTime = CloudentityAuth._getValueFromToken('iat', token);
       const expiresAtTime = CloudentityAuth._getValueFromToken('exp', token);
       const methodHint = CloudentityAuth._getValueFromToken('mth', token);
@@ -327,7 +329,7 @@ class CloudentityAuth {
             const iframeToRemove = document.querySelector(`#${iframeId}`);
             iframeToRemove && document.body.removeChild(iframeToRemove);
             window.removeEventListener('message', listener);
-          },  DEFAULT_SILENT_AUTH_TIMEOUT_IN_SECONDS * 1000);
+          }, DEFAULT_SILENT_AUTH_TIMEOUT_IN_SECONDS * 1000);
 
           const listener = function (e) {
             if (e.origin !== window.location.origin || iframe.contentWindow !== e.source) {
@@ -460,6 +462,10 @@ class CloudentityAuth {
     const lifetimeInSec = (exp - iat);
     const current = new Date().getTime() / 1000;
     return exp - current;
+  }
+
+  static _isJWT (token) {
+    return token && (token.match(/\./g) || []).length === 2
   }
 }
 
