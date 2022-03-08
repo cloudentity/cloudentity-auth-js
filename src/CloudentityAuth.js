@@ -277,6 +277,20 @@ class CloudentityAuth {
   };
 
   /**
+   * Gets ID token from local storage. ID token returned if token is present and not expired.
+   *
+   * @returns {String} or {null}
+   */
+   getIDToken () {
+    const IDToken = CloudentityAuth._getIDToken(this.options);
+    if (!IDToken) {
+      return null;
+    }
+
+    return IDToken;
+  };
+
+  /**
    * Clears access and ID tokens (simple logout).
    */
   logout () {
@@ -451,6 +465,10 @@ class CloudentityAuth {
 
   static _setAccessToken (options, value) {
     setLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`, value);
+  }
+
+  static _getIDToken (options) {
+    return getLocalStorageItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
   }
 
   static _setIdToken (options, value) {
