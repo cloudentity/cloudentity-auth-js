@@ -97,12 +97,11 @@ class CloudentityAuth {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
     const dynamicResponseType = dynamicOptions && dynamicOptions.responseType && notEmptyStringArray(dynamicOptions.responseType);
 
-    const finalOptions = Object.assign(
-      {},
-      this.options,
-      dynamicScopes ? {scopes: dynamicOptions.scopes} : {},
-      dynamicResponseType ? {responseType: dynamicOptions.responseType} : {},
-    )
+    const finalOptions = {
+      ...this.options,
+      ...(dynamicScopes ? {scopes: dynamicOptions.scopes} : {}),
+      ...(dynamicResponseType ? {responseType: dynamicOptions.responseType} : {}),
+    }
 
 
     const prompt = dynamicOptions && dynamicOptions.prompt;
@@ -152,7 +151,7 @@ class CloudentityAuth {
     const hashString = CloudentityAuth._parseQueryString(global.window.location.hash.substring(1));
     const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
     const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
-    const params = Object.assign({}, queryString, hashString)
+    const params = {...queryString, ...hashString}
 
     if (this.options.implicit === true && hashString.access_token) {
       CloudentityAuth._setAccessToken(this.options, hashString.access_token);
