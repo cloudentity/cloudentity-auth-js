@@ -28,6 +28,7 @@ import CloudentityAuth from '@cloudentity/auth';
 
   ```javascript
   var cloudentity = new CloudentityAuth({
+      responseType: ['code'] // required, array with a list of OAuth 2 respose types
       domain: 'your-domain', // e.g. 'example.demo.cloudentity.com.' Recommended; always generates URLs with 'https' protocol.
       // baseUrl: optional alternative to 'domain.' Protocol required, e.g. 'https://example.demo.cloudentity.com.'
       // In situations where protocol may dynamically resolve to 'http' rather than 'https' (for example in dev mode), use 'baseUrl' rather than 'domain'.

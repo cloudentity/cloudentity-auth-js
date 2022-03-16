@@ -60,6 +60,9 @@ const optionsSpec = {
   ],
   implicit: [
     {test: optionalBoolean, message: '\'implicit\' [boolean] required if option value given'}
+  ],
+  responseType: [
+    {test: notEmptyStringArray, message: '\'responseType\' [array of non-empty strings] option is required'}
   ]
 };
 
@@ -92,7 +95,14 @@ class CloudentityAuth {
    */
   authorize (dynamicOptions) {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
-    const finalOptions = dynamicScopes ? {...this.options, ...{scopes: dynamicOptions.scopes}} : this.options;
+    const dynamicResponseType = dynamicOptions && dynamicOptions.responseType && notEmptyStringArray(dynamicOptions.responseType);
+
+    const finalOptions = {
+      ...this.options,
+      ...(dynamicScopes ? {scopes: dynamicOptions.scopes} : {}),
+      ...(dynamicResponseType ? {responseType: dynamicOptions.responseType} : {}),
+    }
+
 
     const prompt = dynamicOptions && dynamicOptions.prompt;
     if (prompt) {
@@ -141,6 +151,7 @@ class CloudentityAuth {
     const hashString = CloudentityAuth._parseQueryString(global.window.location.hash.substring(1));
     const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
     const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
+    const params = {...queryString, ...hashString}
 
     if (this.options.implicit === true && hashString.access_token) {
       CloudentityAuth._setAccessToken(this.options, hashString.access_token);
@@ -153,13 +164,13 @@ class CloudentityAuth {
 
     const accessToken = CloudentityAuth._getAccessToken(this.options);
 
-    if (queryString.code) {
-      if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != queryString.state) {
+    if (params.code) {
+      if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != params.state) {
         this.cleanUpPkceLocalStorageItems();
         return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
         const verificationData = 'grant_type=authorization_code'
-          + '&code=' + encodeURIComponent(queryString.code)
+          + '&code=' + encodeURIComponent(params.code)
           + '&client_id=' + encodeURIComponent(this.options.clientId)
           + '&redirect_uri=' + encodeURIComponent(isSilentAuthFlow && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : this.options.redirectUri)
           + '&code_verifier=' + encodeURIComponent(getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
@@ -173,13 +184,21 @@ class CloudentityAuth {
         })
           .then(CloudentityAuth._handleApiResponse)
           .then(data => {
-            this.cleanUpPkceLocalStorageItems();
+
             if (!this.options.letClientSetAccessToken) {
               CloudentityAuth._setAccessToken(this.options, data.access_token);
             }
+
             if (data.id_token) {
+              if (CloudentityAuth._getValueFromToken("nonce", data.id_token) !== getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`)) {
+                this.cleanUpPkceLocalStorageItems();
+                return Promise.reject({error: ERRORS.UNAUTHORIZED});
+              }
+
               CloudentityAuth._setIdToken(this.options, data.id_token);
             }
+
+            this.cleanUpPkceLocalStorageItems();
             if (isSilentAuthFlow) {
               postSilentAuthSuccessMessage(true);
             }
@@ -193,7 +212,7 @@ class CloudentityAuth {
             return Promise.reject(err);
           });
       }
-    } else if (queryString.error) {
+    } else if (params.error) {
       const capitalizeFirstLetter = (string = '') => {
         return string.charAt(0).toUpperCase() + string.slice(1);
       };
@@ -206,10 +225,10 @@ class CloudentityAuth {
 
       return Promise.reject({
         error: ERRORS.ERROR,
-        error_key: capitalizeFirstLetter((queryString.error || '').replace(/(\+|_)/g, ' ')),
-        error_cause: queryString.error_cause,
-        error_description: (queryString.error_description || '').replace(/\+/g, ' '),
-        error_hint: queryString.error_hint
+        error_key: capitalizeFirstLetter((params.error || '').replace(/(\+|_)/g, ' ')),
+        error_cause: params.error_cause,
+        error_description: (params.error_description || '').replace(/\+/g, ' '),
+        error_hint: params.error_hint
       });
     } else if (accessToken) {
       if (CloudentityAuth._isJWT(accessToken)) {
@@ -254,6 +273,20 @@ class CloudentityAuth {
     }
 
     return accessToken;
+  };
+
+  /**
+   * Gets ID token from local storage. ID token returned if token is present and not expired.
+   *
+   * @returns {String} or {null}
+   */
+   getIDToken () {
+    const IDToken = CloudentityAuth._getIDToken(this.options);
+    if (!IDToken) {
+      return null;
+    }
+
+    return IDToken;
   };
 
   /**
@@ -398,12 +431,16 @@ class CloudentityAuth {
     const codeVerifier = generateRandomString();
     setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_code_verifier`, codeVerifier);
 
+    const nonce = generateRandomString();
+    setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_token_id_nonce`, nonce);
+
     // Hash and base64-urlencode the secret to use as the challenge
     return pkceChallengeFromVerifier(codeVerifier).then(challengeRes => {
       return options.authorizationUri
-        + '?response_type=code'
+        + '?response_type=' + encodeURIComponent(options.responseType.join(' '))
         + '&client_id=' + encodeURIComponent(options.clientId)
         + '&state=' + encodeURIComponent(state)
+        + '&nonce=' + encodeURIComponent(nonce)
         + '&scope=' + encodeURIComponent(options.scopes.join(' '))
         + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
         + '&code_challenge=' + encodeURIComponent(challengeRes)
@@ -415,7 +452,7 @@ class CloudentityAuth {
 
   static _calcAuthorizationUrlImplicit (options) {
     return options.authorizationUri
-      + '?response_type=token'
+      + '?response_type=' + encodeURIComponent(options.responseType.join(' '))
       + '&client_id=' + encodeURIComponent(options.clientId)
       + '&scope=' + encodeURIComponent(options.scopes.join(' '))
       + '&redirect_uri=' + encodeURIComponent(options.redirectUri);
@@ -427,6 +464,10 @@ class CloudentityAuth {
 
   static _setAccessToken (options, value) {
     setLocalStorageItem(options.accessTokenName || `${options.tenantId}_${options.authorizationServerId}_access_token`, value);
+  }
+
+  static _getIDToken (options) {
+    return getLocalStorageItem(options.idTokenName || `${options.tenantId}_${options.authorizationServerId}_id_token`);
   }
 
   static _setIdToken (options, value) {
@@ -441,6 +482,7 @@ class CloudentityAuth {
   cleanUpPkceLocalStorageItems () {
     removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`);
     removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`);
+    removeLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`);
   };
 
   static _parseQueryString (string) {
