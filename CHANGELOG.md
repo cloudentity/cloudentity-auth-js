@@ -4,6 +4,7 @@
 
 ### Fixed
 - Silent authentication doesn't give up after first fail
+- The "Unicode Problem" with 16-bit-encoded strings
 
 ## [1.0.0] - 2020-12-02
 ### Changed

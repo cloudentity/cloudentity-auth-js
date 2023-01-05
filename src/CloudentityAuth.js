@@ -496,8 +496,18 @@ class CloudentityAuth {
   }
 
   static _getValueFromToken (field, token) {
-    let tokenToObject = token ? JSON.parse(global.window.atob(token.split('.')[1])) : {};
-    return tokenToObject[field];
+    if (token) {
+      let payload = token.split('.')[1];
+      let base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      let jsonPayload = decodeURIComponent(global.window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      let jsonPayloadParsed = JSON.parse(jsonPayload)
+
+      return jsonPayloadParsed[field];
+    }
+
+    return undefined;
   }
 
   static _timeToExpiration (iat, exp) {
