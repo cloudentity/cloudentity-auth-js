@@ -96,11 +96,13 @@ class CloudentityAuth {
   authorize (dynamicOptions) {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
     const dynamicResponseType = dynamicOptions && dynamicOptions.responseType && notEmptyStringArray(dynamicOptions.responseType);
+    const dynamicIdpHint = dynamicOptions && dynamicOptions.idpHint && optionalString(dynamicOptions.idpHint);
 
     const finalOptions = {
       ...this.options,
       ...(dynamicScopes ? {scopes: dynamicOptions.scopes} : {}),
       ...(dynamicResponseType ? {responseType: dynamicOptions.responseType} : {}),
+      ...(dynamicIdpHint ? {idpHint: dynamicOptions.idpHint} : {}),
     }
 
 
@@ -446,7 +448,8 @@ class CloudentityAuth {
         + '&code_challenge=' + encodeURIComponent(challengeRes)
         + '&code_challenge_method=S256'
         + `${options.prompt ? `&prompt=${options.prompt}` : ""}`
-        + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`;
+        + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`
+        + `${options.idpHint ? `&idp_hint=${options.idpHint}` : ""}`;
     });
   }
 

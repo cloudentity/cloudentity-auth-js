@@ -1,6 +1,7 @@
 ## [Unreleased]
 ### Added
 - Flag to disable library automatically setting access token, allowing client app more fine-grained control
+- idp_hint support in authorize
 
 ### Fixed
 - Silent authentication doesn't give up after first fail
