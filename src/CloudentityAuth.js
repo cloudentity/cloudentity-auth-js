@@ -95,16 +95,19 @@ class CloudentityAuth {
    */
   authorize (dynamicOptions) {
     const dynamicScopes = dynamicOptions && dynamicOptions.scopes && notEmptyStringArray(dynamicOptions.scopes);
+    const dynamicState = dynamicOptions && dynamicOptions.state && notEmptyString(dynamicOptions.state);
     const dynamicResponseType = dynamicOptions && dynamicOptions.responseType && notEmptyStringArray(dynamicOptions.responseType);
     const dynamicIdpHint = dynamicOptions && dynamicOptions.idpHint && optionalString(dynamicOptions.idpHint);
+    const loginHintIdentifier = dynamicOptions && dynamicOptions.loginHintIdentifier && notEmptyString(dynamicOptions.loginHintIdentifier);
 
     const finalOptions = {
       ...this.options,
       ...(dynamicScopes ? {scopes: dynamicOptions.scopes} : {}),
+      ...(dynamicState ? {state: dynamicOptions.state} : {}),
       ...(dynamicResponseType ? {responseType: dynamicOptions.responseType} : {}),
       ...(dynamicIdpHint ? {idpHint: dynamicOptions.idpHint} : {}),
-    }
-
+      ...(loginHintIdentifier ? {loginHintIdentifier: dynamicOptions.loginHintIdentifier} : {}),
+    };
 
     const prompt = dynamicOptions && dynamicOptions.prompt;
     if (prompt) {
@@ -151,7 +154,9 @@ class CloudentityAuth {
   getAuth (options) {
     const queryString = CloudentityAuth._parseQueryString(global.window.location.search.substring(1));
     const hashString = CloudentityAuth._parseQueryString(global.window.location.hash.substring(1));
-    const isSilentAuthFlow = options && typeof options === 'object' && options.silent === true;
+    const optionsExist = options && typeof options === 'object';
+    const isSilentAuthFlow = optionsExist && options.silent === true;
+    const dynamicRedirectUri = optionsExist && typeof options.dynamicRedirectUri === 'string' && options.dynamicRedirectUri;
     const postSilentAuthSuccessMessage = success => global.window.parent.postMessage(success ? SILENT_AUTH_SUCCESS_MESSAGE : SILENT_AUTH_ERROR_MESSAGE, global.window.location.origin);
     const params = {...queryString, ...hashString}
 
@@ -167,14 +172,14 @@ class CloudentityAuth {
     const accessToken = CloudentityAuth._getAccessToken(this.options);
 
     if (params.code) {
-      if (getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`) != params.state) {
+      if (encodeURIComponent(getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_state`)) != params.state) {
         this.cleanUpPkceLocalStorageItems();
         return Promise.reject({error: ERRORS.UNAUTHORIZED});
       } else {
         const verificationData = 'grant_type=authorization_code'
           + '&code=' + encodeURIComponent(params.code)
           + '&client_id=' + encodeURIComponent(this.options.clientId)
-          + '&redirect_uri=' + encodeURIComponent(isSilentAuthFlow && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : this.options.redirectUri)
+          + '&redirect_uri=' + encodeURIComponent(isSilentAuthFlow && this.options.silentAuthRedirectUri ? this.options.silentAuthRedirectUri : (dynamicRedirectUri || this.options.redirectUri))
           + '&code_verifier=' + encodeURIComponent(getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_pkce_code_verifier`));
 
         return global.window.fetch(this.options.tokenUri, {
@@ -192,7 +197,7 @@ class CloudentityAuth {
             }
 
             if (data.id_token) {
-              if (CloudentityAuth._getValueFromToken("nonce", data.id_token) !== getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`)) {
+              if (CloudentityAuth._getValueFromToken('nonce', data.id_token) !== getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`)) {
                 this.cleanUpPkceLocalStorageItems();
                 return Promise.reject({error: ERRORS.UNAUTHORIZED});
               }
@@ -427,7 +432,7 @@ class CloudentityAuth {
 
   static _calcAuthorizationUrl (options, silentAuth, methodHint) {
     const state = generateRandomString();
-    setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, state);
+    setLocalStorageItem(`${options.tenantId}_${options.authorizationServerId}_pkce_state`, options.state || state);
 
     // Create and store a new PKCE code_verifier (the plaintext random secret)
     const codeVerifier = generateRandomString();
@@ -441,15 +446,16 @@ class CloudentityAuth {
       return options.authorizationUri
         + '?response_type=' + encodeURIComponent(options.responseType.join(' '))
         + '&client_id=' + encodeURIComponent(options.clientId)
-        + '&state=' + encodeURIComponent(state)
+        + '&state=' + encodeURIComponent(options.state || state)
         + '&nonce=' + encodeURIComponent(nonce)
         + '&scope=' + encodeURIComponent(options.scopes.join(' '))
         + '&redirect_uri=' + encodeURIComponent(silentAuth && options.silentAuthRedirectUri ? options.silentAuthRedirectUri : options.redirectUri)
         + '&code_challenge=' + encodeURIComponent(challengeRes)
         + '&code_challenge_method=S256'
-        + `${options.prompt ? `&prompt=${options.prompt}` : ""}`
+        + `${options.prompt ? `&prompt=${options.prompt}` : ''}`
         + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`
-        + `${options.idpHint ? `&idp_hint=${options.idpHint}` : ""}`;
+        + `${options.idpHint ? `&idp_hint=${options.idpHint}` : ''}`
+        + `${options.loginHintIdentifier ? `&login_hint=${encodeURIComponent(options.loginHintIdentifier)}` : ''}`;
     });
   }
 
