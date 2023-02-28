@@ -268,6 +268,56 @@ class CloudentityAuth {
     }
   }
 
+  tokenExchange (options) {
+    const validOptions = options && typeof options === 'object';
+    if (!validOptions) {
+      return Promise.reject({error: 'No options provided'});
+    }
+
+    const validSubjectToken = typeof options.subjectToken === 'string' && CloudentityAuth._isJWT(options.subjectToken);
+    if (!validSubjectToken) {
+      return Promise.reject({error: 'Invalid subject token'});
+    }
+
+    const customFields = typeof options.customFields === 'object' ? options.customFields : {};
+
+    const customFieldsToUrlEncodedString = CloudentityAuth._optionsToUrlEncodedString(customFields);
+
+    const tokenExchangeData = 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange'
+      + '&subject_token=' + encodeURIComponent(options.subjectToken)
+      + '&client_id=' + encodeURIComponent(this.options.clientId)
+      + (customFieldsToUrlEncodedString && '&' + customFieldsToUrlEncodedString);
+
+    return global.window.fetch(this.options.tokenUri, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        ...(typeof options.customHeaders === 'object' ? options.customHeaders : {})
+      },
+      body: tokenExchangeData
+    })
+      .then(CloudentityAuth._handleApiResponse)
+      .then(data => {
+        if (options.setAccessToken) {
+          CloudentityAuth._setAccessToken(this.options, data.access_token);
+        }
+
+        if (data.id_token && options.setIdToken) {
+          if (CloudentityAuth._getValueFromToken('nonce', data.id_token) !== getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`)) {
+            this.cleanUpPkceLocalStorageItems();
+            return Promise.reject({error: ERRORS.UNAUTHORIZED});
+          }
+
+          CloudentityAuth._setIdToken(this.options, data.id_token);
+        }
+
+        return data;
+      })
+      .catch(err => {
+        return Promise.reject(err);
+      });
+  }
+
   /**
    * Gets access token from local storage. Access token returned if token is present and not expired.
    *
@@ -517,6 +567,24 @@ class CloudentityAuth {
     }
 
     return undefined;
+  }
+
+  static _optionsToUrlEncodedString (body) {
+    if (typeof body !== 'object') {
+      return '';
+    }
+
+    let fields = [];
+    for (const key in body) {
+      let value = body[key];
+      if (key === 'scope' && Array.isArray(value)) {
+        value = value.join(' ');
+      }
+      const urlEncodedValue = encodeURIComponent(value);
+      fields.push(key + '=' + urlEncodedValue);
+    }
+
+    return fields.join('&');
   }
 
   static _timeToExpiration (iat, exp) {

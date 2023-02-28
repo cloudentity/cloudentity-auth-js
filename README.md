@@ -91,7 +91,7 @@ import CloudentityAuth from '@cloudentity/auth';
   It's possible to pass `prompt` param to authorization request:
 
   ```javascript
-    cloudentity.authorize({prompt: "login"});
+    cloudentity.authorize({prompt: 'login'});
   ```
 
 4. For simple logout:
@@ -158,6 +158,24 @@ import CloudentityAuth from '@cloudentity/auth';
       accessTokenName: 'your_org_access_token', // it is still possible to specify an access token key value that will always be deleted on logout
   });
   ```
+
+  - To make a token exchange request:
+
+  ```javascript
+  cloudentity.tokenExchange({
+    subjectToken: 'token', // required, this is usually the access_token
+    customFields: { // optional but usually necessary to configure
+      custom_field: 'value', // except for 'scope', values for custom fields must be string
+      scope: ['scope1', 'scope2'] // value of 'scope' can be an array of strings, OR can be a string with spaces separating scopes, e.g. 'scope1 scope2'
+    },
+    customHeaders: { // optional
+      'example-header': 'value'
+    },
+    setAccessToken: true // optional, defaults to 'false'. If set to 'true', token resulting from token exchange request will replace previous access_token in browser local storage.
+  });
+  ```
+
+  Note: Client ID value is sourced from the global config. If token exchange request is used in trusted server-side application, add value for `client_secret` in 'customFields'; if used on client side, do NOT add `client_secret`, but ensure that feature flag for token exchange requests on client side is enabled in your ACP tenant.
 
 ### Legacy browser support
 
