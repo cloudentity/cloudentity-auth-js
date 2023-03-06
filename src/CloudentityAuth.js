@@ -283,9 +283,12 @@ class CloudentityAuth {
 
     const customFieldsToUrlEncodedString = CloudentityAuth._optionsToUrlEncodedString(customFields);
 
+    const clientSecret = options.clientSecret || this.options.clientSecret;
+
     const tokenExchangeData = 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange'
       + '&subject_token=' + encodeURIComponent(options.subjectToken)
-      + '&client_id=' + encodeURIComponent(this.options.clientId)
+      + '&client_id=' + encodeURIComponent(options.clientId || this.options.clientId)
+      + (clientSecret ? '&client_secret=' + encodeURIComponent(clientSecret) : '')
       + (customFieldsToUrlEncodedString && '&' + customFieldsToUrlEncodedString);
 
     return global.window.fetch(this.options.tokenUri, {

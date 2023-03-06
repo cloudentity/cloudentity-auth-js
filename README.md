@@ -163,19 +163,22 @@ import CloudentityAuth from '@cloudentity/auth';
 
   ```javascript
   cloudentity.tokenExchange({
-    subjectToken: 'token', // required, this is usually the access_token
-    customFields: { // optional but usually necessary to configure
-      custom_field: 'value', // except for 'scope', values for custom fields must be string
+    subjectToken: 'token', // required, this is usually the current access_token
+    // clientId: 'client-id', // optional, not necessary unless using different token exchange client than globally configured client
+    // clientSecret: 'client-secret', // optional, ONLY use on server-side application where secret is not exposed in browser
+    customFields: { // optional, but usually necessary to configure for common use cases
+      custom_field_1: 'value1', // except for 'scope', values for custom fields must be string
+      custom_field_2: 'value2',
       scope: ['scope1', 'scope2'] // value of 'scope' can be an array of strings, OR can be a string with spaces separating scopes, e.g. 'scope1 scope2'
     },
-    customHeaders: { // optional
+    customHeaders: { // optional, adds custom http headers to outgoing request
       'example-header': 'value'
     },
     setAccessToken: true // optional, defaults to 'false'. If set to 'true', token resulting from token exchange request will replace previous access_token in browser local storage.
   });
   ```
 
-  Note: Client ID value is sourced from the global config. If token exchange request is used in trusted server-side application, add value for `client_secret` in 'customFields'; if used on client side, do NOT add `client_secret`, but ensure that feature flag for token exchange requests on client side is enabled in your ACP tenant.
+  Note: Client ID value is sourced from the global config by default. `clientId` config can be added to request as shown above to use a different ID than that of the global client. Only if token exchange request is used in server-side application, add config for `clientSecret` as well; if used on UI client side, do NOT add `clientSecret`, but ensure that feature flag for token exchange requests on client side is enabled in your ACP tenant.
 
 ### Legacy browser support
 
