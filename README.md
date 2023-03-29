@@ -174,7 +174,8 @@ import CloudentityAuth from '@cloudentity/auth';
     customHeaders: { // optional, adds custom http headers to outgoing request
       'example-header': 'value'
     },
-    setAccessToken: true // optional, defaults to 'false'. If set to 'true', token resulting from token exchange request will replace previous access_token in browser local storage.
+    setAccessToken: false, // optional, defaults to 'false'. If set to 'true', access token resulting from token exchange request will replace previous access_token in browser local storage.
+    setIdToken: false // optional, defaults to 'false'. If set to 'true', ID token resulting from token exchange request will replace previous id_token in browser local storage.
   });
   ```
 

@@ -16,6 +16,9 @@ const optionsSpec = {
   clientId: [
     {test: notEmptyString, message: '\'cliendId\' [non-empty string] option is required'}
   ],
+  clientSecret: [
+    {test: optionalString, message: '\'clientSecret\' [non-empty string] required if option value given'}
+  ],
   tenantId: [
     {test: optionalString, message: '\'tenantId\' [non-empty string] option is required'}
   ],
@@ -306,11 +309,6 @@ class CloudentityAuth {
         }
 
         if (data.id_token && options.setIdToken) {
-          if (CloudentityAuth._getValueFromToken('nonce', data.id_token) !== getLocalStorageItem(`${this.options.tenantId}_${this.options.authorizationServerId}_token_id_nonce`)) {
-            this.cleanUpPkceLocalStorageItems();
-            return Promise.reject({error: ERRORS.UNAUTHORIZED});
-          }
-
           CloudentityAuth._setIdToken(this.options, data.id_token);
         }
 
