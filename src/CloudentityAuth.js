@@ -102,6 +102,7 @@ class CloudentityAuth {
     const dynamicResponseType = dynamicOptions && dynamicOptions.responseType && notEmptyStringArray(dynamicOptions.responseType);
     const dynamicIdpHint = dynamicOptions && dynamicOptions.idpHint && optionalString(dynamicOptions.idpHint);
     const loginHintIdentifier = dynamicOptions && dynamicOptions.loginHintIdentifier && notEmptyString(dynamicOptions.loginHintIdentifier);
+    const acrValues = dynamicOptions && dynamicOptions.acrValues && notEmptyString(dynamicOptions.acrValues);
 
     const finalOptions = {
       ...this.options,
@@ -110,6 +111,7 @@ class CloudentityAuth {
       ...(dynamicResponseType ? {responseType: dynamicOptions.responseType} : {}),
       ...(dynamicIdpHint ? {idpHint: dynamicOptions.idpHint} : {}),
       ...(loginHintIdentifier ? {loginHintIdentifier: dynamicOptions.loginHintIdentifier} : {}),
+      ...(acrValues ? {acrValues: dynamicOptions.acrValues} : {}),
     };
 
     const prompt = dynamicOptions && dynamicOptions.prompt;
@@ -506,7 +508,8 @@ class CloudentityAuth {
         + `${options.prompt ? `&prompt=${options.prompt}` : ''}`
         + `${silentAuth ? `&prompt=none&method_hint=${methodHint || ''}` : ''}`
         + `${options.idpHint ? `&idp_hint=${options.idpHint}` : ''}`
-        + `${options.loginHintIdentifier ? `&login_hint=${encodeURIComponent(options.loginHintIdentifier)}` : ''}`;
+        + `${options.loginHintIdentifier ? `&login_hint=${encodeURIComponent(options.loginHintIdentifier)}` : ''}`
+        + `${options.acrValues ? `&acr_values=${encodeURIComponent(options.acrValues)}` : ''}`;
     });
   }
 
